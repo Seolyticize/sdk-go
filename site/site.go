@@ -139,7 +139,7 @@ func post(ctx context.Context, url string, body any, into any, timeout time.Dura
 		return 0, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("User-Agent", "seolyticize-go-site/0.1.0")
+	request.Header.Set("User-Agent", "seolyticize-go-site/0.2.0")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return 0, err

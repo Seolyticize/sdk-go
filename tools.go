@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 199
+const ToolCount = 239
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -17,22 +17,28 @@ var readOnlyTools = map[string]bool{
 	"analyse_server_log":             true,
 	"batch_domain_metrics":           true,
 	"build_disavow_file":             true,
+	"compare_crawls":                 true,
+	"describe_datasets":              true,
 	"estimate_ai_visibility_cost":    true,
 	"estimate_cost":                  true,
 	"explain_keyword_difficulty":     true,
 	"export_ai_visibility_data":      true,
+	"export_data":                    true,
 	"export_search_console_data":     true,
 	"get_agent_readiness":            true,
+	"get_ai_overview_citations":      true,
 	"get_ai_visibility":              true,
 	"get_ai_visibility_answer":       true,
 	"get_ai_visibility_results":      true,
 	"get_ai_visibility_runs":         true,
 	"get_ai_visibility_setup":        true,
 	"get_ai_visibility_trend":        true,
+	"get_anchor_overlap":             true,
 	"get_audit_summary":              true,
 	"get_backlink_audit":             true,
 	"get_billing":                    true,
 	"get_bing_performance":           true,
+	"get_brand_split":                true,
 	"get_branding":                   true,
 	"get_cannibalization":            true,
 	"get_click_curve":                true,
@@ -40,15 +46,21 @@ var readOnlyTools = map[string]bool{
 	"get_client_brief":               true,
 	"get_client_costs":               true,
 	"get_client_integrations":        true,
+	"get_competitor_new_pages":       true,
+	"get_competitor_page_changes":    true,
 	"get_connection_link":            true,
 	"get_content_decay":              true,
 	"get_content_gap":                true,
+	"get_content_groups":             true,
+	"get_conversions":                true,
 	"get_costs":                      true,
+	"get_crawl_settings":             true,
 	"get_crawl_status":               true,
 	"get_deploy_hook":                true,
 	"get_domain_facts":               true,
 	"get_domain_technologies":        true,
 	"get_entity_pageviews":           true,
+	"get_extraction_results":         true,
 	"get_ga4_audience":               true,
 	"get_ga4_ecommerce":              true,
 	"get_ga4_key_events":             true,
@@ -61,6 +73,8 @@ var readOnlyTools = map[string]bool{
 	"get_google_service_account":     true,
 	"get_index_coverage":             true,
 	"get_indexnow_key":               true,
+	"get_internal_link_graph":        true,
+	"get_issue_templates":            true,
 	"get_keyword_difficulty":         true,
 	"get_keyword_gap":                true,
 	"get_keyword_list":               true,
@@ -70,16 +84,24 @@ var readOnlyTools = map[string]bool{
 	"get_low_ctr_queries":            true,
 	"get_next_steps":                 true,
 	"get_opportunities":              true,
+	"get_page_details":               true,
 	"get_page_issues":                true,
 	"get_panel_reach":                true,
+	"get_parameter_report":           true,
 	"get_position_distribution":      true,
+	"get_query_page_swaps":           true,
 	"get_rank_history":               true,
 	"get_rank_summary":               true,
+	"get_rendering_report":           true,
 	"get_run_status":                 true,
+	"get_search_appearance":          true,
+	"get_search_changes":             true,
 	"get_search_console_performance": true,
 	"get_search_demand":              true,
 	"get_search_opportunities":       true,
+	"get_search_timeline":            true,
 	"get_serp_features":              true,
+	"get_serp_volatility":            true,
 	"get_share_of_voice":             true,
 	"get_site_status":                true,
 	"get_top_searches":               true,
@@ -90,7 +112,9 @@ var readOnlyTools = map[string]bool{
 	"get_written_report":             true,
 	"get_yandex_performance":         true,
 	"list_alert_rules":               true,
+	"list_annotations":               true,
 	"list_clients":                   true,
+	"list_conversion_goals":          true,
 	"list_crawl_issues":              true,
 	"list_crawls":                    true,
 	"list_issue_pages":               true,
@@ -108,8 +132,29 @@ var readOnlyTools = map[string]bool{
 	"list_tracked_keywords":          true,
 	"list_written_reports":           true,
 	"page_vitals":                    true,
+	"query_data":                     true,
 	"striking_distance":              true,
+	"suggest_internal_links":         true,
 	"whoami":                         true,
+}
+
+// AddAnnotationInput is the input to add_annotation.
+type AddAnnotationInput struct {
+	ClientID string `json:"clientId"`
+	On       string `json:"on"` // The day it happened (UTC).
+	Kind     string `json:"kind"`
+	Title    string `json:"title"`
+	Detail   string `json:"detail,omitempty"`
+	URL      string `json:"url,omitempty"`
+}
+
+// AddAnnotation calls add_annotation: Note something on the client's timeline.
+// Records something that happened on a day — a deploy, a page published or
+// rewritten, a campaign, a technical change, a note — so traffic charts and
+// get_search_timeline can be read as cause and effect. Answers 'remember that
+// we shipped this today'. Deploy hooks note their runs on their own. Free.
+func (c *Client) AddAnnotation(ctx context.Context, in AddAnnotationInput) (json.RawMessage, error) {
+	return c.Call(ctx, "add_annotation", in)
 }
 
 // AddCompetitorsInput is the input to add_competitors.
@@ -286,6 +331,33 @@ func (c *Client) BatchDomainMetrics(ctx context.Context, in BatchDomainMetricsIn
 	return c.Call(ctx, "batch_domain_metrics", in)
 }
 
+// BuildContentBriefInput is the input to build_content_brief.
+type BuildContentBriefInput struct {
+	ClientID        string   `json:"clientId"`
+	Keyword         string   `json:"keyword"`
+	RelatedKeywords []string `json:"relatedKeywords,omitempty"`
+	TargetURL       string   `json:"targetUrl,omitempty"` // The page this brief is for, if it exists, so it is not suggested as its own internal link.
+	Depth           *int64   `json:"depth,omitempty"`
+	Save            *bool    `json:"save,omitempty"`
+	LocationCode    *int64   `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom, 2724 Spain). Default: the client's project.
+	LanguageCode    string   `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
+	MaxCostMicros   *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// BuildContentBrief calls build_content_brief: Build a content brief. A
+// writer's brief for a keyword (or a cluster: the keyword plus
+// relatedKeywords), built from the pages that rank: search intent and the
+// format that wins (list, how-to, comparison, review, landing page, article),
+// target length, the outline to cover, must-cover and nice-to-have terms,
+// questions to answer (People Also Ask and the ranking pages'), structure and
+// schema to include, the client's own pages to link to and from, and each
+// competing page with what it misses. Answers 'brief me on this keyword' and
+// 'what should this post cover'. save: true keeps it as a research note on the
+// client brief. Same cost as get_serp_content_profile.
+func (c *Client) BuildContentBrief(ctx context.Context, in BuildContentBriefInput) (json.RawMessage, error) {
+	return c.Call(ctx, "build_content_brief", in)
+}
+
 // BuildDisavowFileInput is the input to build_disavow_file.
 type BuildDisavowFileInput struct {
 	Entries []map[string]any `json:"entries"`
@@ -301,6 +373,51 @@ type BuildDisavowFileInput struct {
 // are left out rather than written.
 func (c *Client) BuildDisavowFile(ctx context.Context, in BuildDisavowFileInput) (json.RawMessage, error) {
 	return c.Call(ctx, "build_disavow_file", in)
+}
+
+// ClusterKeywordsInput is the input to cluster_keywords.
+type ClusterKeywordsInput struct {
+	ClientID      string   `json:"clientId"`
+	Keywords      []string `json:"keywords,omitempty"`
+	ListID        string   `json:"listId,omitempty"`
+	MinShared     *int64   `json:"minShared,omitempty"`
+	Depth         *int64   `json:"depth,omitempty"`
+	Mode          string   `json:"mode,omitempty"`          // head: every keyword overlaps the topic's top keyword (plan pages with this). connected: chains of overlap join topics.
+	LocationCode  *int64   `json:"locationCode,omitempty"`  // Default: the client's project.
+	LanguageCode  string   `json:"languageCode,omitempty"`  // Default: the client's project.
+	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// ClusterKeywords calls cluster_keywords: Group keywords into topics. Groups
+// keywords into topics by how much their Google results overlap: keywords
+// whose top results share at least minShared pages are one topic, which one
+// page should target. Each topic has its parent topic (the highest-volume
+// keyword), total volume, intent, the pages that rank across it, and where the
+// client already ranks. Answers 'which of these keywords belong on one page'
+// and 'how many pages do we need'. Give keywords (up to 200) or a keyword
+// listId. One results page per keyword, each a paid lookup on the client's
+// account unless someone bought it in the last day — quote with estimate_cost
+// first.
+func (c *Client) ClusterKeywords(ctx context.Context, in ClusterKeywordsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "cluster_keywords", in)
+}
+
+// CompareCrawlsInput is the input to compare_crawls.
+type CompareCrawlsInput struct {
+	ClientID       string `json:"clientId"`
+	CrawlID        string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	AgainstCrawlID string `json:"againstCrawlId,omitempty"`
+	Sample         *int64 `json:"sample,omitempty"`
+}
+
+// CompareCrawls calls compare_crawls: What changed since the last crawl.
+// Compares a crawl's issues with the crawl before it (or againstCrawlId), page
+// by page: issues that are new, issues that were fixed, and rules that got
+// worse or better, with sample pages — plus pages added, removed and changed.
+// Answers 'did the fixes work', 'what broke this week' and 'what should the
+// weekly audit report'. Free.
+func (c *Client) CompareCrawls(ctx context.Context, in CompareCrawlsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "compare_crawls", in)
 }
 
 // ConnectGoogleAnalyticsServiceAccountInput is the input to connect_google_analytics_service_account.
@@ -648,6 +765,19 @@ func (c *Client) DeleteWrittenReport(ctx context.Context, in DeleteWrittenReport
 	return c.Call(ctx, "delete_written_report", in)
 }
 
+// DescribeDatasetsInput is the input to describe_datasets.
+type DescribeDatasetsInput struct {
+}
+
+// DescribeDatasets calls describe_datasets: What can be queried. The datasets
+// query_data and export_data read — Search Console (every day kept),
+// cookieless analytics events, crawl pages, issues and links, rank captures,
+// backlinks — with their columns, metrics and time column. Answers 'what data
+// is there to ask about'. Free.
+func (c *Client) DescribeDatasets(ctx context.Context, in DescribeDatasetsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "describe_datasets", in)
+}
+
 // DisconnectAppInput is the input to disconnect_app.
 type DisconnectAppInput struct {
 	GrantID string `json:"grantId"`
@@ -790,6 +920,31 @@ func (c *Client) ExportAIVisibilityData(ctx context.Context, in ExportAIVisibili
 	return c.Call(ctx, "export_ai_visibility_data", in)
 }
 
+// ExportDataInput is the input to export_data.
+type ExportDataInput struct {
+	ClientID   string           `json:"clientId"`
+	Dataset    string           `json:"dataset"`
+	Dimensions []string         `json:"dimensions,omitempty"`
+	Metrics    []string         `json:"metrics,omitempty"`
+	Columns    []string         `json:"columns,omitempty"`
+	Filters    []map[string]any `json:"filters,omitempty"`
+	From       string           `json:"from,omitempty"`
+	To         string           `json:"to,omitempty"`
+	OrderBy    []map[string]any `json:"orderBy,omitempty"`
+	CrawlID    string           `json:"crawlId,omitempty"` // For crawl datasets: a crawl id or latest.
+	Limit      *int64           `json:"limit,omitempty"`
+	Format     string           `json:"format,omitempty"`
+}
+
+// ExportData calls export_data: Export stored data to a file. The same query
+// as query_data, written to a file — CSV, JSON lines or Parquet, up to a
+// million rows — with a download link valid for 24 hours, for BigQuery, a
+// notebook or a spreadsheet. Answers 'give me all of our Search Console
+// history' and 'export the crawl'. Free.
+func (c *Client) ExportData(ctx context.Context, in ExportDataInput) (json.RawMessage, error) {
+	return c.Call(ctx, "export_data", in)
+}
+
 // ExportSearchConsoleDataInput is the input to export_search_console_data.
 type ExportSearchConsoleDataInput struct {
 	ClientID   string `json:"clientId"`
@@ -843,6 +998,25 @@ type GetAgentReadinessInput struct {
 // rendering, structured data. Answers 'why are assistants not citing us'.
 func (c *Client) GetAgentReadiness(ctx context.Context, in GetAgentReadinessInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_agent_readiness", in)
+}
+
+// GetAIOverviewCitationsInput is the input to get_ai_overview_citations.
+type GetAIOverviewCitationsInput struct {
+	ClientID  string `json:"clientId"`
+	TrackerID string `json:"trackerId,omitempty"` // Default: every tracker of the client.
+	Feature   string `json:"feature,omitempty"`
+	Days      *int64 `json:"days,omitempty"`
+}
+
+// GetAIOverviewCitations calls get_ai_overview_citations: Who the AI Overview
+// cites. For each tracked keyword: how often Google showed an AI Overview (or
+// a featured snippet, or People Also Ask — feature), whether the client is
+// cited, who is, and how that changed; plus the domains cited most across the
+// keywords — the outreach and content targets. Answers 'are we in the AI
+// Overview' and 'who does Google trust on this topic'. From the results pages
+// already captured; free.
+func (c *Client) GetAIOverviewCitations(ctx context.Context, in GetAIOverviewCitationsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_ai_overview_citations", in)
 }
 
 // GetAIVisibilityInput is the input to get_ai_visibility.
@@ -937,6 +1111,43 @@ func (c *Client) GetAIVisibilityTrend(ctx context.Context, in GetAIVisibilityTre
 	return c.Call(ctx, "get_ai_visibility_trend", in)
 }
 
+// GetAnchorDistributionInput is the input to get_anchor_distribution.
+type GetAnchorDistributionInput struct {
+	ClientID      string `json:"clientId"`
+	Domain        string `json:"domain,omitempty"` // Any domain; default the client's own.
+	Source        string `json:"source,omitempty"`
+	Limit         *int64 `json:"limit,omitempty"`
+	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetAnchorDistribution calls get_anchor_distribution: Anchor text mix. The
+// anchor texts a domain is linked with, each classed as branded, a bare URL,
+// generic (click here, read more), empty (images) or other (usually
+// keyword-rich), and the mix by referring domains. Answers 'does our link
+// profile look natural' and 'what do they rank with'. source vendor (and auto,
+// when a provider is connected) is a paid lookup on the client's account
+// unless anyone bought it in the last week; index is free.
+func (c *Client) GetAnchorDistribution(ctx context.Context, in GetAnchorDistributionInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_anchor_distribution", in)
+}
+
+// GetAnchorOverlapInput is the input to get_anchor_overlap.
+type GetAnchorOverlapInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	Limit    *int64 `json:"limit,omitempty"`
+}
+
+// GetAnchorOverlap calls get_anchor_overlap: One anchor, several pages.
+// Descriptive anchor texts used for links to more than one page — the site
+// telling search engines that two pages are about the same words, which splits
+// their ranking (cannibalization through links). Generic anchors (read more,
+// click here) are left out. Answers 'are our internal links confusing Google'.
+// Free.
+func (c *Client) GetAnchorOverlap(ctx context.Context, in GetAnchorOverlapInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_anchor_overlap", in)
+}
+
 // GetAuditSummaryInput is the input to get_audit_summary.
 type GetAuditSummaryInput struct {
 	ClientID string `json:"clientId"`
@@ -988,6 +1199,47 @@ type GetBacklinkSpamScoresInput struct {
 // Answers 'what does the vendor think of these links'.
 func (c *Client) GetBacklinkSpamScores(ctx context.Context, in GetBacklinkSpamScoresInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_backlink_spam_scores", in)
+}
+
+// GetBacklinksInput is the input to get_backlinks.
+type GetBacklinksInput struct {
+	ClientID      string `json:"clientId"`
+	Domain        string `json:"domain,omitempty"` // Any domain; default the client's own.
+	Source        string `json:"source,omitempty"`
+	Limit         *int64 `json:"limit,omitempty"`
+	Mode          string `json:"mode,omitempty"`
+	Days          *int64 `json:"days,omitempty"`
+	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetBacklinks calls get_backlinks: Backlinks, new and lost. The links to a
+// domain, page to page, with anchor and follow status; mode new lists links
+// first seen in the last days, lost those no longer seen since. Answers 'which
+// links did we gain or lose this month' and 'what links does this competitor
+// have'. source vendor (and auto, when a provider is connected) is a paid
+// lookup on the client's account unless anyone bought it in the last week;
+// index is free.
+func (c *Client) GetBacklinks(ctx context.Context, in GetBacklinksInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_backlinks", in)
+}
+
+// GetBestPagesByLinksInput is the input to get_best_pages_by_links.
+type GetBestPagesByLinksInput struct {
+	ClientID      string `json:"clientId"`
+	Domain        string `json:"domain,omitempty"` // Any domain; default the client's own.
+	Source        string `json:"source,omitempty"`
+	Limit         *int64 `json:"limit,omitempty"`
+	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetBestPagesByLinks calls get_best_pages_by_links: Pages that attract links.
+// A domain's pages by how many domains link to them. Run it on competitors to
+// see what kind of content earns links in a niche — the content worth making.
+// Answers 'what do people link to'. source vendor (and auto, when a provider
+// is connected) is a paid lookup on the client's account unless anyone bought
+// it in the last week; index is free.
+func (c *Client) GetBestPagesByLinks(ctx context.Context, in GetBestPagesByLinksInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_best_pages_by_links", in)
 }
 
 // GetBillingInput is the input to get_billing.
@@ -1052,6 +1304,26 @@ func (c *Client) GetBrandMentions(ctx context.Context, in GetBrandMentionsInput)
 	return c.Call(ctx, "get_brand_mentions", in)
 }
 
+// GetBrandSplitInput is the input to get_brand_split.
+type GetBrandSplitInput struct {
+	ClientID string `json:"clientId"`
+	From     string `json:"from,omitempty"` // Default: 16 months before to.
+	To       string `json:"to,omitempty"`   // Default: the newest day archived.
+	Interval string `json:"interval,omitempty"`
+	Country  string `json:"country,omitempty"`
+}
+
+// GetBrandSplit calls get_brand_split: Branded vs non-branded search. Google
+// search clicks and impressions split into branded (the query names the
+// client) and non-branded, by day, week or month, with the property total and
+// the anonymised remainder Google withholds queries for. Answers 'is
+// non-branded traffic growing' — the number content and SEO work actually
+// move. Brand terms come from the client brief (update_client_brief
+// brandTerms), or the client's name and domain. Free.
+func (c *Client) GetBrandSplit(ctx context.Context, in GetBrandSplitInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_brand_split", in)
+}
+
 // GetBrandingInput is the input to get_branding.
 type GetBrandingInput struct {
 }
@@ -1062,6 +1334,26 @@ type GetBrandingInput struct {
 // strings where nothing is set.
 func (c *Client) GetBranding(ctx context.Context, in GetBrandingInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_branding", in)
+}
+
+// GetBrokenBacklinksInput is the input to get_broken_backlinks.
+type GetBrokenBacklinksInput struct {
+	ClientID      string `json:"clientId"`
+	Source        string `json:"source,omitempty"`
+	Limit         *int64 `json:"limit,omitempty"`
+	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetBrokenBacklinks calls get_broken_backlinks: Links to broken pages. Links
+// from other sites to the client's pages that no longer work (4xx, or not
+// answering), grouped by page, with the closest live page to redirect each to
+// — links already earned, reclaimed with one redirect. Answers 'which links
+// are we wasting'. Status comes from the latest crawl, and pages it did not
+// crawl are checked. source vendor (and auto, when a provider is connected) is
+// a paid lookup on the client's account unless anyone bought it in the last
+// week; index is free.
+func (c *Client) GetBrokenBacklinks(ctx context.Context, in GetBrokenBacklinksInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_broken_backlinks", in)
 }
 
 // GetCannibalizationInput is the input to get_cannibalization.
@@ -1148,6 +1440,39 @@ func (c *Client) GetClientIntegrations(ctx context.Context, in GetClientIntegrat
 	return c.Call(ctx, "get_client_integrations", in)
 }
 
+// GetCompetitorNewPagesInput is the input to get_competitor_new_pages.
+type GetCompetitorNewPagesInput struct {
+	ClientID    string   `json:"clientId"`
+	Days        *int64   `json:"days,omitempty"`
+	Competitors []string `json:"competitors,omitempty"`
+	Limit       *int64   `json:"limit,omitempty"`
+}
+
+// GetCompetitorNewPages calls get_competitor_new_pages: What competitors
+// published. New and updated pages on competitors' sites, from their sitemaps
+// (read daily for every competitor a tracker watches, and read now for any not
+// yet watched), grouped by section — 'competitor X published 14 pages under
+// /guides this week'. Answers 'what are they writing about' and 'what did they
+// just launch'. competitors overrides the tracked ones. Free.
+func (c *Client) GetCompetitorNewPages(ctx context.Context, in GetCompetitorNewPagesInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_competitor_new_pages", in)
+}
+
+// GetCompetitorPageChangesInput is the input to get_competitor_page_changes.
+type GetCompetitorPageChangesInput struct {
+	ClientID  string `json:"clientId"`
+	TrackerID string `json:"trackerId,omitempty"` // Default: every tracker of the client.
+	Days      *int64 `json:"days,omitempty"`
+}
+
+// GetCompetitorPageChanges calls get_competitor_page_changes: Changes to pages
+// that outrank us. Pages that rank above the client for its tracked keywords
+// whose title, H1, length or sections changed — read from snapshots taken
+// every few days. Answers 'what did the page that beat us change'. Free.
+func (c *Client) GetCompetitorPageChanges(ctx context.Context, in GetCompetitorPageChangesInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_competitor_page_changes", in)
+}
+
 // GetConnectionLinkInput is the input to get_connection_link.
 type GetConnectionLinkInput struct {
 	ClientID      string `json:"clientId"`
@@ -1202,6 +1527,50 @@ func (c *Client) GetContentGap(ctx context.Context, in GetContentGapInput) (json
 	return c.Call(ctx, "get_content_gap", in)
 }
 
+// GetContentGroupsInput is the input to get_content_groups.
+type GetContentGroupsInput struct {
+	ClientID string           `json:"clientId"`
+	Days     *int64           `json:"days,omitempty"`    // Length of each period, ending on the newest day Google has finished counting.
+	Compare  string           `json:"compare,omitempty"` // previous: the same number of days just before. year: the same days a year earlier.
+	Groups   []map[string]any `json:"groups,omitempty"`
+	Country  string           `json:"country,omitempty"`
+	Device   string           `json:"device,omitempty"`
+}
+
+// GetContentGroups calls get_content_groups: Search traffic by section. Google
+// search clicks, impressions and position rolled up by section of the site,
+// two periods compared. Answers 'how is the blog doing against the guides' and
+// 'which template is losing traffic'. groups are matched in order against each
+// page's path, first match wins (* matches anything, so '/blog/*'); without
+// groups, pages are grouped by their first path segment. Free.
+func (c *Client) GetContentGroups(ctx context.Context, in GetContentGroupsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_content_groups", in)
+}
+
+// GetConversionsInput is the input to get_conversions.
+type GetConversionsInput struct {
+	ClientID string   `json:"clientId"`
+	Source   string   `json:"source,omitempty"`
+	By       string   `json:"by,omitempty"`
+	Channel  string   `json:"channel,omitempty"`
+	Goals    []string `json:"goals,omitempty"`
+	Days     *int64   `json:"days,omitempty"`
+	Limit    *int64   `json:"limit,omitempty"`
+}
+
+// GetConversions calls get_conversions: Conversions by landing page and
+// source. Conversions (sign-ups, purchases, any goal) by the page a visit
+// landed on, its source or its referrer, with visits, converting visits,
+// conversion rate and value — and, by landing page, the Search Console queries
+// that bring those visits. Answers 'which pages and queries actually make
+// money' and 'what is organic search worth'. source web_analytics uses the
+// cookieless analytics' custom events (goals: the event names; default every
+// event; value from a 'value' property); ga4 uses GA4's key events on organic
+// sessions. channel narrows to search engines or AI assistants. Free.
+func (c *Client) GetConversions(ctx context.Context, in GetConversionsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_conversions", in)
+}
+
 // GetCostsInput is the input to get_costs.
 type GetCostsInput struct {
 	SinceDays *int64 `json:"sinceDays,omitempty"`
@@ -1212,6 +1581,20 @@ type GetCostsInput struct {
 // 'which clients cost us the most'. Amounts are US dollars.
 func (c *Client) GetCosts(ctx context.Context, in GetCostsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_costs", in)
+}
+
+// GetCrawlSettingsInput is the input to get_crawl_settings.
+type GetCrawlSettingsInput struct {
+	ClientID string `json:"clientId"`
+}
+
+// GetCrawlSettings calls get_crawl_settings: How the site is crawled. The
+// client's crawl settings: query parameters stripped from discovered URLs,
+// custom extraction rules, and JavaScript rendering (off, shells — only pages
+// that look unrendered — or all, up to renderMaxPages a crawl). Answers 'what
+// does the crawl do differently for this site'. Free.
+func (c *Client) GetCrawlSettings(ctx context.Context, in GetCrawlSettingsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_crawl_settings", in)
 }
 
 // GetCrawlStatusInput is the input to get_crawl_status.
@@ -1225,6 +1608,29 @@ type GetCrawlStatusInput struct {
 // reason. Answers 'has the audit finished'.
 func (c *Client) GetCrawlStatus(ctx context.Context, in GetCrawlStatusInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_crawl_status", in)
+}
+
+// GetDemandMatrixInput is the input to get_demand_matrix.
+type GetDemandMatrixInput struct {
+	ClientID      string         `json:"clientId"`
+	Pattern       string         `json:"pattern"` // Words with {slot} placeholders, e.g. 'receive sms {service} {country}'.
+	Slots         map[string]any `json:"slots"`
+	LocationCode  *int64         `json:"locationCode,omitempty"`
+	LanguageCode  string         `json:"languageCode,omitempty"`
+	MinVolume     *int64         `json:"minVolume,omitempty"`     // Below this monthly volume a combination is skip.
+	MaxCostMicros *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetDemandMatrix calls get_demand_matrix: Demand for every combination.
+// Search volume, difficulty and CPC for every combination of a pattern's slots
+// — 'receive sms {service} {country}' with services and countries — up to 500,
+// with the client's ranking page and position for each from Search Console and
+// a verdict: write (demand, no page), improve (a page beyond the top ten),
+// have (top ten) or skip (no demand). Answers 'which of these template pages
+// deserve to exist'. Volumes any agency bought before are reused free; the
+// rest is a paid keyword lookup on the client's account, in batches.
+func (c *Client) GetDemandMatrix(ctx context.Context, in GetDemandMatrixInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_demand_matrix", in)
 }
 
 // GetDeployHookInput is the input to get_deploy_hook.
@@ -1290,6 +1696,24 @@ type GetEntityPageviewsInput struct {
 // the closest article is not always the brand's own.
 func (c *Client) GetEntityPageviews(ctx context.Context, in GetEntityPageviewsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_entity_pageviews", in)
+}
+
+// GetExtractionResultsInput is the input to get_extraction_results.
+type GetExtractionResultsInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	Name     string `json:"name,omitempty"`
+	Limit    *int64 `json:"limit,omitempty"`
+	Offset   *int64 `json:"offset,omitempty"`
+}
+
+// GetExtractionResults calls get_extraction_results: Custom extraction
+// results. The values custom extraction (set_crawl_settings extractions) read
+// off each page in a crawl, page by page; name narrows to one rule. Answers
+// 'which pages have no author', 'what price does each product page show' and
+// 'which posts are older than X'. Free.
+func (c *Client) GetExtractionResults(ctx context.Context, in GetExtractionResultsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_extraction_results", in)
 }
 
 // GetGA4AudienceInput is the input to get_ga4_audience.
@@ -1533,6 +1957,43 @@ func (c *Client) GetIndexnowKey(ctx context.Context, in GetIndexnowKeyInput) (js
 	return c.Call(ctx, "get_indexnow_key", in)
 }
 
+// GetInternalLinkGraphInput is the input to get_internal_link_graph.
+type GetInternalLinkGraphInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	Sort     string `json:"sort,omitempty"`
+	Limit    *int64 `json:"limit,omitempty"`
+	Offset   *int64 `json:"offset,omitempty"`
+}
+
+// GetInternalLinkGraph calls get_internal_link_graph: The internal link graph.
+// Every crawled page with its internal inlinks and outlinks, clicks from the
+// home page, internal PageRank (0–100), and the anchors it is linked with —
+// plus orphans (indexable pages nothing links to), pages unreachable from the
+// home page, and pages more than three clicks deep. Links that redirect are
+// followed to the page they land on; nofollow links do not count. Answers
+// 'which pages are buried', 'what holds our internal authority' and 'which
+// pages are orphaned'. Free.
+func (c *Client) GetInternalLinkGraph(ctx context.Context, in GetInternalLinkGraphInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_internal_link_graph", in)
+}
+
+// GetIssueTemplatesInput is the input to get_issue_templates.
+type GetIssueTemplatesInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	RuleID   string `json:"ruleId,omitempty"`
+}
+
+// GetIssueTemplates calls get_issue_templates: Issues by template. Groups each
+// issue's pages by URL template (ids, slugs with numbers and query values
+// replaced by *), so '62 pages of /community/es/u/*?sort=*' reads as one fix
+// on one template. Answers 'how many fixes is this really' and 'which template
+// causes this'. ruleId narrows to one issue. Free.
+func (c *Client) GetIssueTemplates(ctx context.Context, in GetIssueTemplatesInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_issue_templates", in)
+}
+
 // GetKeywordDifficultyInput is the input to get_keyword_difficulty.
 type GetKeywordDifficultyInput struct {
 	ClientID   string   `json:"clientId"`
@@ -1711,6 +2172,24 @@ func (c *Client) GetOpportunities(ctx context.Context, in GetOpportunitiesInput)
 	return c.Call(ctx, "get_opportunities", in)
 }
 
+// GetPageDetailsInput is the input to get_page_details.
+type GetPageDetailsInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	URL      string `json:"url"`
+}
+
+// GetPageDetails calls get_page_details: Everything the crawl read on a page.
+// One crawled page in full: its H2/H3 outline, word count, published and
+// modified dates, structured data as written, custom extraction values, the
+// addresses that redirect to it, what JavaScript changed when it was rendered,
+// and its place in the link graph (inlinks, outlinks, click depth, internal
+// PageRank, anchors). Answers 'what does the crawler see on this page'. Use
+// get_page_issues for its issues. Free.
+func (c *Client) GetPageDetails(ctx context.Context, in GetPageDetailsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_page_details", in)
+}
+
 // GetPageIssuesInput is the input to get_page_issues.
 type GetPageIssuesInput struct {
 	ClientID string `json:"clientId"`
@@ -1742,6 +2221,22 @@ func (c *Client) GetPanelReach(ctx context.Context, in GetPanelReachInput) (json
 	return c.Call(ctx, "get_panel_reach", in)
 }
 
+// GetParameterReportInput is the input to get_parameter_report.
+type GetParameterReportInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+}
+
+// GetParameterReport calls get_parameter_report: URL parameters and crawl
+// waste. Every query parameter the crawl met — sort orders, filters, tracking,
+// pagination — with how many pages carry it, how many of those are
+// canonicalised to another page (crawl waste), their issues, and whether to
+// strip it from crawls (set_crawl_settings stripParams), keep it, or review
+// it. Answers 'why is the crawl full of ?sort= pages'. Free.
+func (c *Client) GetParameterReport(ctx context.Context, in GetParameterReportInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_parameter_report", in)
+}
+
 // GetPositionDistributionInput is the input to get_position_distribution.
 type GetPositionDistributionInput struct {
 	ClientID  string `json:"clientId"`
@@ -1759,6 +2254,27 @@ type GetPositionDistributionInput struct {
 // over ranking keywords only.
 func (c *Client) GetPositionDistribution(ctx context.Context, in GetPositionDistributionInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_position_distribution", in)
+}
+
+// GetQueryPageSwapsInput is the input to get_query_page_swaps.
+type GetQueryPageSwapsInput struct {
+	ClientID       string `json:"clientId"`
+	Days           *int64 `json:"days,omitempty"`    // Length of each period, ending on the newest day Google has finished counting.
+	Compare        string `json:"compare,omitempty"` // previous: the same number of days just before. year: the same days a year earlier.
+	Brand          string `json:"brand,omitempty"`   // non_branded is what SEO work moves; branded is people already looking for the client.
+	MinImpressions *int64 `json:"minImpressions,omitempty"`
+	Limit          *int64 `json:"limit,omitempty"`
+}
+
+// GetQueryPageSwaps calls get_query_page_swaps: Queries answered by a
+// different page. Queries where Google now sends searchers to a different page
+// of the site than in the previous period, with both pages and their clicks.
+// Answers 'is Google confused about which page to rank' — a swap is usually
+// two pages competing (merge them or fix internal links) or a new page taking
+// over. Every Search Console query, not only tracked keywords (get_url_swaps
+// covers those). Free.
+func (c *Client) GetQueryPageSwaps(ctx context.Context, in GetQueryPageSwapsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_query_page_swaps", in)
 }
 
 // GetRankHistoryInput is the input to get_rank_history.
@@ -1794,6 +2310,44 @@ func (c *Client) GetRankSummary(ctx context.Context, in GetRankSummaryInput) (js
 	return c.Call(ctx, "get_rank_summary", in)
 }
 
+// GetReferringDomainsInput is the input to get_referring_domains.
+type GetReferringDomainsInput struct {
+	ClientID      string `json:"clientId"`
+	Domain        string `json:"domain,omitempty"` // Any domain; default the client's own.
+	Source        string `json:"source,omitempty"`
+	Limit         *int64 `json:"limit,omitempty"`
+	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetReferringDomains calls get_referring_domains: Referring domains. The
+// domains linking to a domain (the client's or any competitor's), with how
+// many links each sends, whether they follow, the linking domain's authority
+// (0–100) and when the links were first and last seen. Answers 'who links to
+// us', 'who links to them' and 'which sites are worth asking'. source vendor
+// (and auto, when a provider is connected) is a paid lookup on the client's
+// account unless anyone bought it in the last week; index is free.
+func (c *Client) GetReferringDomains(ctx context.Context, in GetReferringDomainsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_referring_domains", in)
+}
+
+// GetRenderingReportInput is the input to get_rendering_report.
+type GetRenderingReportInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	Limit    *int64 `json:"limit,omitempty"`
+}
+
+// GetRenderingReport calls get_rendering_report: What JavaScript changes.
+// Pages the crawl rendered with JavaScript, compared with their raw HTML:
+// words and links that exist only after JavaScript runs, and a title,
+// canonical, meta robots, H1, description or structured data that JavaScript
+// changes — what a search engine or an AI crawler that does not run scripts
+// never sees. Answers 'does our content depend on JavaScript'. Turn rendering
+// on with set_crawl_settings render. Free.
+func (c *Client) GetRenderingReport(ctx context.Context, in GetRenderingReportInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_rendering_report", in)
+}
+
 // GetRunStatusInput is the input to get_run_status.
 type GetRunStatusInput struct {
 	ClientID string `json:"clientId"`
@@ -1809,6 +2363,49 @@ type GetRunStatusInput struct {
 // has aged out, reads as unknown.
 func (c *Client) GetRunStatus(ctx context.Context, in GetRunStatusInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_run_status", in)
+}
+
+// GetSearchAppearanceInput is the input to get_search_appearance.
+type GetSearchAppearanceInput struct {
+	ClientID string `json:"clientId"`
+	Days     *int64 `json:"days,omitempty"`    // Length of each period, ending on the newest day Google has finished counting.
+	Compare  string `json:"compare,omitempty"` // previous: the same number of days just before. year: the same days a year earlier.
+}
+
+// GetSearchAppearance calls get_search_appearance: Search traffic by result
+// kind. Google web search clicks and impressions by search appearance — rich
+// results, videos, FAQ and review snippets, AMP and the other result kinds
+// Search Console reports — two periods compared. Answers 'are our rich results
+// earning clicks' and 'did we lose a result type'. Collected from the day this
+// was added, and back sixteen months once a connection's history has been
+// filled. Free.
+func (c *Client) GetSearchAppearance(ctx context.Context, in GetSearchAppearanceInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_search_appearance", in)
+}
+
+// GetSearchChangesInput is the input to get_search_changes.
+type GetSearchChangesInput struct {
+	ClientID       string `json:"clientId"`
+	Days           *int64 `json:"days,omitempty"`    // Length of each period, ending on the newest day Google has finished counting.
+	Compare        string `json:"compare,omitempty"` // previous: the same number of days just before. year: the same days a year earlier.
+	Dimension      string `json:"dimension,omitempty"`
+	Brand          string `json:"brand,omitempty"` // non_branded is what SEO work moves; branded is people already looking for the client.
+	Country        string `json:"country,omitempty"`
+	Device         string `json:"device,omitempty"`
+	MinImpressions *int64 `json:"minImpressions,omitempty"`
+	Limit          *int64 `json:"limit,omitempty"`
+}
+
+// GetSearchChanges calls get_search_changes: What changed in search. Two
+// periods of Google search compared, by query or by page: what is new (shown
+// now, not at all before), what was lost, and the biggest gainers and losers
+// by clicks. Answers 'which queries did we start ranking for', 'what did we
+// lose this week' and 'which pages are growing'. brand narrows to branded or
+// non-branded queries (non-branded is what SEO work moves); country and device
+// segment it. Periods end on the newest day Google has finished counting.
+// Free.
+func (c *Client) GetSearchChanges(ctx context.Context, in GetSearchChangesInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_search_changes", in)
 }
 
 // GetSearchConsolePerformanceInput is the input to get_search_console_performance.
@@ -1880,6 +2477,45 @@ func (c *Client) GetSearchOpportunities(ctx context.Context, in GetSearchOpportu
 	return c.Call(ctx, "get_search_opportunities", in)
 }
 
+// GetSearchTimelineInput is the input to get_search_timeline.
+type GetSearchTimelineInput struct {
+	ClientID string `json:"clientId"`
+	From     string `json:"from,omitempty"` // Default: 90 days before to.
+	To       string `json:"to,omitempty"`   // Default: the newest day archived.
+}
+
+// GetSearchTimeline calls get_search_timeline: Search traffic with what
+// happened. Daily Google web search clicks and impressions (and non-branded
+// clicks) beside the client's timeline: deploys, publishes, campaigns and
+// notes, and Google's algorithm updates. Answers 'what caused this drop' and
+// 'did the release help'. Free.
+func (c *Client) GetSearchTimeline(ctx context.Context, in GetSearchTimelineInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_search_timeline", in)
+}
+
+// GetSerpContentProfileInput is the input to get_serp_content_profile.
+type GetSerpContentProfileInput struct {
+	ClientID      string `json:"clientId"`
+	Keyword       string `json:"keyword"`
+	Depth         *int64 `json:"depth,omitempty"`         // How many organic results to read.
+	LocationCode  *int64 `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom, 2724 Spain). Default: the client's project.
+	LanguageCode  string `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
+	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetSerpContentProfile calls get_serp_content_profile: What the ranking pages
+// have in common. Reads the top Google results for a keyword and each ranking
+// page, and reports what they share: word count range, the outline themes most
+// of them cover, the terms they use and how often, the questions they answer,
+// tables, lists, images, video, schema types, reading ease and how recently
+// they were updated — plus People Also Ask and related searches, and each
+// page's own summary. Answers 'what does it take to rank for this'. The
+// results page is a paid lookup on the client's account unless someone bought
+// it in the last day (spend says which); the pages are fetched free.
+func (c *Client) GetSerpContentProfile(ctx context.Context, in GetSerpContentProfileInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_serp_content_profile", in)
+}
+
 // GetSerpFeaturesInput is the input to get_serp_features.
 type GetSerpFeaturesInput struct {
 	ClientID  string `json:"clientId"`
@@ -1895,6 +2531,22 @@ type GetSerpFeaturesInput struct {
 // them, which is not the same as a page with none.
 func (c *Client) GetSerpFeatures(ctx context.Context, in GetSerpFeaturesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_serp_features", in)
+}
+
+// GetSerpVolatilityInput is the input to get_serp_volatility.
+type GetSerpVolatilityInput struct {
+	ClientID  string `json:"clientId"`
+	TrackerID string `json:"trackerId,omitempty"` // Default: every tracker of the client.
+	Days      *int64 `json:"days,omitempty"`
+}
+
+// GetSerpVolatility calls get_serp_volatility: How much the results are
+// moving. How much page one moved between readings for each tracked keyword (0
+// still, ~10 turned over), a daily index for the client's keywords beside an
+// industry-wide one from every keyword in the archive, and Google's updates in
+// the window. Answers 'is it us or is it Google' when rankings move. Free.
+func (c *Client) GetSerpVolatility(ctx context.Context, in GetSerpVolatilityInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_serp_volatility", in)
 }
 
 // GetShareOfVoiceInput is the input to get_share_of_voice.
@@ -1954,6 +2606,33 @@ type GetTopSearchesInput struct {
 // between. Terms below the reporting floor never appear.
 func (c *Client) GetTopSearches(ctx context.Context, in GetTopSearchesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_top_searches", in)
+}
+
+// GetTopicMapInput is the input to get_topic_map.
+type GetTopicMapInput struct {
+	ClientID      string   `json:"clientId"`
+	Seed          string   `json:"seed,omitempty"`
+	Days          *int64   `json:"days,omitempty"`
+	ExtraKeywords []string `json:"extraKeywords,omitempty"`
+	Method        string   `json:"method,omitempty"`
+	Limit         *int64   `json:"limit,omitempty"` // How many Search Console queries to map, most impressions first.
+	MinShared     *int64   `json:"minShared,omitempty"`
+	LocationCode  *int64   `json:"locationCode,omitempty"`  // Default: the client's project.
+	LanguageCode  string   `json:"languageCode,omitempty"`  // Default: the client's project.
+	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// GetTopicMap calls get_topic_map: Map topics to pages. The client's topics
+// from Search Console (non-branded queries, optionally containing a seed) plus
+// any extra keywords, grouped into clusters and pillars, each mapped to the
+// pages Google shows for it: no_page (write it), one_page, or several_pages
+// (impressions split between pages — merge or fix internal links). Answers
+// 'what should we write next', 'which topics have no page' and 'where are our
+// pages competing'. method serp_overlap clusters by results-page overlap (one
+// paid lookup per keyword unless bought in the last day); search_console
+// clusters by the page each query lands on, free.
+func (c *Client) GetTopicMap(ctx context.Context, in GetTopicMapInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_topic_map", in)
 }
 
 // GetURLSwapsInput is the input to get_url_swaps.
@@ -2191,6 +2870,22 @@ func (c *Client) ListAlertRules(ctx context.Context, in ListAlertRulesInput) (js
 	return c.Call(ctx, "list_alert_rules", in)
 }
 
+// ListAnnotationsInput is the input to list_annotations.
+type ListAnnotationsInput struct {
+	ClientID      string `json:"clientId"`
+	From          string `json:"from,omitempty"` // Default: a year before to.
+	To            string `json:"to,omitempty"`   // Default: today.
+	IncludeGoogle *bool  `json:"includeGoogle,omitempty"`
+}
+
+// ListAnnotations calls list_annotations: List the client's timeline. The
+// client's timeline notes between two days, oldest first, with Google's
+// algorithm updates when includeGoogle is true. Answers 'what changed around
+// then'. Free.
+func (c *Client) ListAnnotations(ctx context.Context, in ListAnnotationsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "list_annotations", in)
+}
+
 // ListAPIActivityInput is the input to list_api_activity.
 type ListAPIActivityInput struct {
 	SinceHours *int64 `json:"sinceHours,omitempty"`
@@ -2238,6 +2933,21 @@ type ListConnectedAppsInput struct {
 // it, and when it was last used. Answers 'what has access to our account'.
 func (c *Client) ListConnectedApps(ctx context.Context, in ListConnectedAppsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_connected_apps", in)
+}
+
+// ListConversionGoalsInput is the input to list_conversion_goals.
+type ListConversionGoalsInput struct {
+	ClientID string `json:"clientId"`
+	Days     *int64 `json:"days,omitempty"`
+}
+
+// ListConversionGoals calls list_conversion_goals: The events a site sends.
+// The custom events the client's site sends to the cookieless analytics,
+// most-sent first, with how many carry a value — the goals get_conversions can
+// count. Answers 'what are we tracking'. Says how to send one when there are
+// none. Free.
+func (c *Client) ListConversionGoals(ctx context.Context, in ListConversionGoalsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "list_conversion_goals", in)
 }
 
 // ListCrawlIssuesInput is the input to list_crawl_issues.
@@ -2589,6 +3299,34 @@ func (c *Client) PinTrackedKeywords(ctx context.Context, in PinTrackedKeywordsIn
 	return c.Call(ctx, "pin_tracked_keywords", in)
 }
 
+// QueryDataInput is the input to query_data.
+type QueryDataInput struct {
+	ClientID   string           `json:"clientId"`
+	Dataset    string           `json:"dataset"`
+	Dimensions []string         `json:"dimensions,omitempty"`
+	Metrics    []string         `json:"metrics,omitempty"`
+	Columns    []string         `json:"columns,omitempty"`
+	Filters    []map[string]any `json:"filters,omitempty"`
+	From       string           `json:"from,omitempty"`
+	To         string           `json:"to,omitempty"`
+	OrderBy    []map[string]any `json:"orderBy,omitempty"`
+	CrawlID    string           `json:"crawlId,omitempty"` // For crawl datasets: a crawl id or latest.
+	Limit      *int64           `json:"limit,omitempty"`
+}
+
+// QueryData calls query_data: Query the stored data. Asks any question of a
+// client's stored data the other tools do not answer: pick a dataset
+// (describe_datasets), group by dimensions, compute metrics (count, sum(col),
+// avg(col), min, max, uniq, plus ctr and position for Search Console, visitors
+// and visits for analytics), filter (eq, neq, contains, starts_with, gt, lt,
+// in, regex), order and limit — or list rows with columns. Answers 'which
+// queries containing X lost clicks on mobile in Spain', 'how many 404s per
+// template'. Read-only and always limited to the client's own data. Up to
+// 10,000 rows; export_data for more. Free.
+func (c *Client) QueryData(ctx context.Context, in QueryDataInput) (json.RawMessage, error) {
+	return c.Call(ctx, "query_data", in)
+}
+
 // QueueURLInspectionsInput is the input to queue_url_inspections.
 type QueueURLInspectionsInput struct {
 	ClientID string   `json:"clientId"`
@@ -2658,6 +3396,19 @@ type RefreshRankingsInput struct {
 // minute lands on the run already going rather than paying twice.
 func (c *Client) RefreshRankings(ctx context.Context, in RefreshRankingsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "refresh_rankings", in)
+}
+
+// RemoveAnnotationsInput is the input to remove_annotations.
+type RemoveAnnotationsInput struct {
+	ClientID string   `json:"clientId"`
+	IDs      []string `json:"ids"`
+}
+
+// RemoveAnnotations calls remove_annotations: Remove timeline notes. Removes
+// the client's timeline notes by id; unknown ids are ignored. Answers 'take
+// that note off'. Google's updates cannot be removed. Free.
+func (c *Client) RemoveAnnotations(ctx context.Context, in RemoveAnnotationsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "remove_annotations", in)
 }
 
 // RemoveCompetitorsInput is the input to remove_competitors.
@@ -2952,6 +3703,31 @@ func (c *Client) ScheduleReport(ctx context.Context, in ScheduleReportInput) (js
 	return c.Call(ctx, "schedule_report", in)
 }
 
+// ScoreContentInput is the input to score_content.
+type ScoreContentInput struct {
+	ClientID      string `json:"clientId"`
+	Keyword       string `json:"keyword"`
+	URL           string `json:"url,omitempty"`
+	Html          string `json:"html,omitempty"`
+	Markdown      string `json:"markdown,omitempty"`
+	LocationCode  *int64 `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom, 2724 Spain). Default: the client's project.
+	LanguageCode  string `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
+	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+}
+
+// ScoreContent calls score_content: Score a draft before publishing. Scores a
+// draft (a URL, HTML or Markdown) 0–100 against the pages that rank for its
+// keyword: term coverage, outline coverage, questions answered, length and
+// structure — with the missing terms (and how often to use them), missing
+// sections, unanswered questions and a fix list, most important first. Answers
+// 'is this ready to publish' and 'what should I add'. Run it after each
+// revision until it is at par with the results page. Same cost as
+// get_serp_content_profile; a results page bought for the brief is reused free
+// for a day.
+func (c *Client) ScoreContent(ctx context.Context, in ScoreContentInput) (json.RawMessage, error) {
+	return c.Call(ctx, "score_content", in)
+}
+
 // SendReportInput is the input to send_report.
 type SendReportInput struct {
 	ClientID       string `json:"clientId"`
@@ -3023,6 +3799,29 @@ type SetBrandingInput struct {
 // three: this replaces what is there.
 func (c *Client) SetBranding(ctx context.Context, in SetBrandingInput) (json.RawMessage, error) {
 	return c.Call(ctx, "set_branding", in)
+}
+
+// SetCrawlSettingsInput is the input to set_crawl_settings.
+type SetCrawlSettingsInput struct {
+	ClientID       string           `json:"clientId"`
+	StripParams    []string         `json:"stripParams,omitempty"`
+	Extractions    []map[string]any `json:"extractions,omitempty"`
+	Render         string           `json:"render,omitempty"`
+	RenderMaxPages *int64           `json:"renderMaxPages,omitempty"`
+}
+
+// SetCrawlSettings calls set_crawl_settings: Change how the site is crawled.
+// Changes the client's crawl settings for the next crawl; fields left out are
+// kept. stripParams removes query parameters from every discovered URL (names,
+// or prefixes like utm_*), so sorted and filtered copies of a page are crawled
+// once. extractions reads values off every page (up to 10): css (a selector,
+// optionally an attribute), regex (first group), jsonld
+// ('Article.datePublished') or meta (a name or property) — see
+// get_extraction_results. render runs JavaScript: off, shells (pages that look
+// unrendered) or all, capped at renderMaxPages. Answers 'crawl this site this
+// way'. Free.
+func (c *Client) SetCrawlSettings(ctx context.Context, in SetCrawlSettingsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "set_crawl_settings", in)
 }
 
 // SetKeywordNotesInput is the input to set_keyword_notes.
@@ -3239,6 +4038,27 @@ func (c *Client) SuggestAIPrompts(ctx context.Context, in SuggestAIPromptsInput)
 	return c.Call(ctx, "suggest_ai_prompts", in)
 }
 
+// SuggestInternalLinksInput is the input to suggest_internal_links.
+type SuggestInternalLinksInput struct {
+	ClientID  string   `json:"clientId"`
+	CrawlID   string   `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	TargetURL string   `json:"targetUrl,omitempty"`
+	Phrases   []string `json:"phrases,omitempty"`
+	Limit     *int64   `json:"limit,omitempty"`
+}
+
+// SuggestInternalLinks calls suggest_internal_links: Suggest internal links.
+// Pages that already mention a topic in their text but do not link to the page
+// about it, with the exact sentence and the words to use as the anchor,
+// strongest linking pages first. Give targetUrl (and phrases, default: its
+// title and H1 and the queries it ranks for); without a target, it picks the
+// client's pages in striking distance in Search Console (positions 4–20) —
+// where an internal link moves rankings most. Answers 'where should we add
+// internal links'. Free.
+func (c *Client) SuggestInternalLinks(ctx context.Context, in SuggestInternalLinksInput) (json.RawMessage, error) {
+	return c.Call(ctx, "suggest_internal_links", in)
+}
+
 // SyncLocalReviewsInput is the input to sync_local_reviews.
 type SyncLocalReviewsInput struct {
 	ClientID      string `json:"clientId"`
@@ -3323,6 +4143,7 @@ type UpdateClientBriefInput struct {
 	Add         []map[string]any `json:"add,omitempty"`
 	Update      []map[string]any `json:"update,omitempty"`
 	Remove      []string         `json:"remove,omitempty"`
+	BrandTerms  []string         `json:"brandTerms,omitempty"` // Replaces the brand terms: what people type when already looking for this business (its name, products, misspellings). Search Console splits branded from non-bra
 }
 
 // UpdateClientBrief calls update_client_brief: Update the client brief.
@@ -3331,7 +4152,8 @@ type UpdateClientBriefInput struct {
 // audience, voice; null or empty clears one, fields left out are untouched);
 // add entries (kind competitor, key_page, section or research, each with a
 // title and optional body and url); edit entries by id; remove entries by id
-// (unknown ids are ignored). Applied in that order, so removing an old
+// (unknown ids are ignored); replace the brand terms (brandTerms) that split
+// branded from non-branded search. Applied in that order, so removing an old
 // competitor and adding its replacement in one call works. Record a research
 // entry when you finish a piece of work whose conclusions the next one should
 // start from; the 50 newest research notes are kept. Returns the brief as it
