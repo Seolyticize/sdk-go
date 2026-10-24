@@ -28,7 +28,7 @@ import (
 const DefaultBaseURL = "https://seolyticize.com"
 
 // Version is this SDK's version, sent as the user agent.
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 // Client calls the Seolyticize API. The zero value is not usable; use New.
 type Client struct {

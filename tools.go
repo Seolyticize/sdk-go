@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 492
+const ToolCount = 499
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -71,6 +71,7 @@ var readOnlyTools = map[string]bool{
 	"get_bing_search_stats":           true,
 	"get_brand_split":                 true,
 	"get_branding":                    true,
+	"get_budget_status":               true,
 	"get_cannibalization":             true,
 	"get_click_curve":                 true,
 	"get_client":                      true,
@@ -156,6 +157,7 @@ var readOnlyTools = map[string]bool{
 	"get_rank_summary":                true,
 	"get_recipe":                      true,
 	"get_rendering_report":            true,
+	"get_report_data":                 true,
 	"get_robots_history":              true,
 	"get_run_status":                  true,
 	"get_search_anomalies":            true,
@@ -264,6 +266,7 @@ type AcceptIssueInput struct {
 	URLs     []string `json:"urls,omitempty"`
 	Reason   string   `json:"reason"`
 	Until    string   `json:"until,omitempty"`
+	DryRun   *bool    `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
 }
 
 // AcceptIssue calls accept_issue: Accept an audit issue as intentional. Marks
@@ -275,10 +278,14 @@ type AcceptIssueInput struct {
 // the counts of get_audit_summary (shown apart as accepted, each with its
 // reason), the weekly digest, create_tasks_from_audit and the alerts;
 // list_issue_pages marks them. ruleId comes from get_audit_summary. matchedNow
-// is how many of the latest crawl's findings it covers (null without a crawl).
-// Examples: login pages noindexed by design, old versions of the legal pages,
-// sort variants. unaccept_issue undoes it. Answers 'stop flagging our login
-// pages, they are noindexed on purpose'. Free.
+// is how many of the latest crawl's findings of the rule it covers, out of
+// rulePages (both null without a crawl), with a sample of the covered
+// addresses; warning is set when it covers nothing, or when a template covers
+// more than half the rule's pages (likely too broad). dryRun: true saves
+// nothing and answers the same coverage, to check a template first. Examples:
+// login pages noindexed by design, old versions of the legal pages, sort
+// variants. unaccept_issue undoes it. Answers 'stop flagging our login pages,
+// they are noindexed on purpose'. Free.
 func (c *Client) AcceptIssue(ctx context.Context, in AcceptIssueInput) (json.RawMessage, error) {
 	return c.Call(ctx, "accept_issue", in)
 }
@@ -810,21 +817,27 @@ func (c *Client) CheckBrandEntity(ctx context.Context, in CheckBrandEntityInput)
 
 // CheckDeployInput is the input to check_deploy.
 type CheckDeployInput struct {
-	ClientID   string   `json:"clientId"`
-	PreviewURL string   `json:"previewUrl,omitempty"`
-	URLs       []string `json:"urls,omitempty"`
-	MaxURLs    *int64   `json:"maxUrls,omitempty"`
-	FailOn     string   `json:"failOn,omitempty"`
+	ClientID        string   `json:"clientId"`
+	PreviewURL      string   `json:"previewUrl,omitempty"`
+	URLs            []string `json:"urls,omitempty"`
+	MaxURLs         *int64   `json:"maxUrls,omitempty"`
+	FailOn          string   `json:"failOn,omitempty"`
+	BaselineCrawlID string   `json:"baselineCrawlId,omitempty"` // A complete crawl of this client to compare with, from list_crawls; default the latest complete one.
 }
 
 // CheckDeploy calls check_deploy: Check a deploy before it ships. Fetches
 // pages now and compares what they tell search engines (status, robots,
 // canonical, hreflang, title, H1, structured data types; and, against crawls
 // that recorded them, meta description, Open Graph tags, structured data
-// values, H2 outline and copy) with the latest crawl's snapshot of the same
-// paths. Give previewUrl (a deploy preview or staging origin: the crawl's
-// pages, one or more per template, are fetched on that host, up to maxUrls) or
-// urls (specific addresses, on production or a preview; matched by path).
+// values, H2 outline and copy) with the latest complete crawl's snapshot of
+// the same paths, or the complete crawl baselineCrawlId names (from
+// list_crawls), to compare against a crawl from before a release; baseline
+// says which crawl was used and when it ran, and notes warns when the latest
+// crawl started before the last recorded deploy (deploy hook or deploy
+// annotation), so the baseline may already include that release. Give
+// previewUrl (a deploy preview or staging origin: the crawl's pages, one or
+// more per template, are fetched on that host, up to maxUrls) or urls
+// (specific addresses, on production or a preview; matched by path).
 // Canonicals and hreflang on the preview host are read as the production host,
 // so only real changes show. passed is false when anything at or above failOn
 // (default critical: noindex added, canonical changed, title dropped, a page
@@ -1043,6 +1056,7 @@ type CompareSitesInput struct {
 	Paths           []string `json:"paths,omitempty"`
 	MaxPages        *int64   `json:"maxPages,omitempty"`
 	SendCrawlAuthTo string   `json:"sendCrawlAuthTo,omitempty"`
+	FollowRedirect  *bool    `json:"followRedirect,omitempty"` // When one side's home redirects to the other's host, follow it and check each path lands on the same path there, instead of stopping.
 }
 
 // CompareSites calls compare_sites: Compare staging with production. Fetches
@@ -1057,9 +1071,15 @@ type CompareSitesInput struct {
 // When one side's home redirects to the other's host (www to the apex),
 // redirect names the status and target and nothing is diffed, since that side
 // has no pages of its own; single paths that redirect across are listed in
-// redirected. Answers 'is staging ready to go live' and 'what will the
-// migration change'. No vendor charge; it fetches pages on the client's
-// behalf, so it needs project:manage.
+// redirected. followRedirect: true follows that redirect instead of stopping:
+// each path on the redirecting side is fetched to where it lands and compared
+// with the same path on the other side (the redirect's destination),
+// redirectMap lists where each landed, and a path the redirect sends elsewhere
+// (the home page, a 404) or a temporary redirect shows as a change; redirect
+// stays reported and followedRedirect says it was followed. Answers 'is
+// staging ready to go live', 'what will the migration change' and 'does www
+// still redirect every page to the same path'. No vendor charge; it fetches
+// pages on the client's behalf, so it needs project:manage.
 func (c *Client) CompareSites(ctx context.Context, in CompareSitesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "compare_sites", in)
 }
@@ -1279,6 +1299,30 @@ type CreateAPIKeyInput struct {
 // cannot be given more access than the caller has.
 func (c *Client) CreateAPIKey(ctx context.Context, in CreateAPIKeyInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_api_key", in)
+}
+
+// CreateBusinessPostInput is the input to create_business_post.
+type CreateBusinessPostInput struct {
+	ClientID     string         `json:"clientId"`
+	LocationID   string         `json:"locationId,omitempty"` // The client's location, from list_local_locations. Default: its one connected location.
+	Summary      string         `json:"summary"`
+	CallToAction map[string]any `json:"callToAction,omitempty"`
+	DryRun       *bool          `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
+}
+
+// CreateBusinessPost calls create_business_post: Publish a Google Business
+// Profile post. Publishes an update post (topic STANDARD) on the client's own
+// Google Business Profile listing through its connected Business Profile:
+// summary (up to 1,500 characters) and an optional callToAction — BOOK, ORDER,
+// SHOP, LEARN_MORE or SIGN_UP with a url, or CALL with none (it dials the
+// listing's phone). dryRun: true publishes nothing and returns the exact
+// localPosts body. The answer carries Google's name for the post and its state
+// (PROCESSING until Google has reviewed it, LIVE, or REJECTED for its content
+// policy). Refused with missing_scope or not_connected as
+// update_business_profile is. get_business_posts reads the posts already
+// there. Answers 'post this offer on our Google listing'. Free.
+func (c *Client) CreateBusinessPost(ctx context.Context, in CreateBusinessPostInput) (json.RawMessage, error) {
+	return c.Call(ctx, "create_business_post", in)
 }
 
 // CreateClientInput is the input to create_client.
@@ -1577,7 +1621,9 @@ type CreateReportLinkInput struct {
 // last periodDays days (default 30) as of now, fixed: the page does not change
 // as time passes. Anyone holding the link can read it until it expires
 // (expiresInDays, default 14, at most 90), so only make one when the user
-// asks. revoke_report_links turns every earlier link off. Free.
+// asks. The url is shown only in this answer and is never stored; linkId names
+// it for list_report_links and revoke_report_link. revoke_report_links turns
+// every earlier link off. Free.
 func (c *Client) CreateReportLink(ctx context.Context, in CreateReportLinkInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_report_link", in)
 }
@@ -3134,10 +3180,13 @@ func (c *Client) GetBacklinkAudit(ctx context.Context, in GetBacklinkAuditInput)
 
 // GetBacklinkHealthInput is the input to get_backlink_health.
 type GetBacklinkHealthInput struct {
-	ClientID   string         `json:"clientId"`
-	MoneyTerms []string       `json:"moneyTerms,omitempty"`
-	SpamScores map[string]any `json:"spamScores,omitempty"` // Domain → DataForSEO spam score, from get_backlink_spam_scores.
-	Industry   string         `json:"industry,omitempty"`
+	ClientID        string         `json:"clientId"`
+	MoneyTerms      []string       `json:"moneyTerms,omitempty"`
+	SpamScores      map[string]any `json:"spamScores,omitempty"`      // Domain → DataForSEO spam score, from get_backlink_spam_scores.
+	FetchSpamScores *bool          `json:"fetchSpamScores,omitempty"` // True to buy the vendor's spam score for every linking site inside this call (one paid request of up to 1,000 sites, the price of get_backlink_spam_scores; sites
+	Industry        string         `json:"industry,omitempty"`
+	MaxCostMicros   *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+	DryRun          *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
 }
 
 // GetBacklinkHealth calls get_backlink_health: How healthy is the link
@@ -3161,8 +3210,12 @@ type GetBacklinkHealthInput struct {
 // profile's toxic signals: 50+ directory links, linking pages with 10,000+
 // outbound links, more than 50 links from one site, linking pages under 100
 // words, reciprocal links. Pass moneyTerms to tell exact and partial-match
-// anchors apart, and spamScores from get_backlink_spam_scores. Answers 'how
-// healthy are our backlinks' and 'is our link profile at risk'. Free.
+// anchors apart. Spam scores sharpen the toxic ratio: fetchSpamScores: true
+// buys them inside this call (one paid DataForSEO request of up to 1,000
+// linking sites, the price of get_backlink_spam_scores; sites scored in the
+// last 30 days are reused free; quote it with estimate_cost or dryRun first),
+// or pass spamScores you already have. Answers 'how healthy are our backlinks'
+// and 'is our link profile at risk'. Free without fetchSpamScores.
 func (c *Client) GetBacklinkHealth(ctx context.Context, in GetBacklinkHealthInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_backlink_health", in)
 }
@@ -3476,6 +3529,25 @@ func (c *Client) GetBrokenBacklinks(ctx context.Context, in GetBrokenBacklinksIn
 	return c.Call(ctx, "get_broken_backlinks", in)
 }
 
+// GetBudgetStatusInput is the input to get_budget_status.
+type GetBudgetStatusInput struct {
+	ClientID string `json:"clientId"`
+}
+
+// GetBudgetStatus calls get_budget_status: A client's budget and month-end
+// forecast. A client's monthly budget (null when none is set), what it has
+// spent this month, what is left, when the month resets and the alert share,
+// plus projection: an estimate of month-end spend from the paid work already
+// scheduled — each rank tracker's cadence × keywords × devices × price, AI
+// visibility checks on their cadence, and alert rules with their paid source
+// on — priced from the same ceilings estimate_cost quotes, so the real figure
+// is usually lower. Answers 'how much budget is left' and 'will this client go
+// over this month' before any paid call. set_budget changes the budget;
+// get_client_costs says what the spend went on. Free.
+func (c *Client) GetBudgetStatus(ctx context.Context, in GetBudgetStatusInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_budget_status", in)
+}
+
 // GetBusinessPostsInput is the input to get_business_posts.
 type GetBusinessPostsInput struct {
 	ClientID      string `json:"clientId"`
@@ -3643,7 +3715,9 @@ type GetClientCostsInput struct {
 
 // GetClientCosts calls get_client_costs: Vendor spend for one client. What one
 // client's data cost over recent days, by operation, with request counts.
-// Answers 'what are we paying for on this account'. Amounts are US dollars.
+// Answers 'what are we paying for on this account'. The budget, what is left
+// of it and a month-end forecast are get_budget_status. Amounts are US
+// dollars.
 func (c *Client) GetClientCosts(ctx context.Context, in GetClientCostsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_client_costs", in)
 }
@@ -4909,9 +4983,11 @@ type GetLinkChecksInput struct {
 // link is there), lost (the page no longer links), unknown (the page could not
 // be read), moved (the page redirected elsewhere and the link is not at the
 // new address, with movedTo) or unverifiable_js (the page is a JavaScript app
-// shell, so its links cannot be seen without a browser), with counts. Only
-// lost is a removal. Read from the last check, never fetched now. Answers
-// 'which links have we lost'. Run recheck_links to check again. Free.
+// shell, so its links cannot be seen without a browser), with counts, and
+// rendered: true where the last check read the page in a browser. Only lost is
+// a removal. Read from the last check, never fetched now. Answers 'which links
+// have we lost'. Run recheck_links to check again, or recheck_links with
+// render: true to read the unverifiable_js pages in a browser. Free.
 func (c *Client) GetLinkChecks(ctx context.Context, in GetLinkChecksInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_link_checks", in)
 }
@@ -5869,6 +5945,33 @@ func (c *Client) GetRenderingReport(ctx context.Context, in GetRenderingReportIn
 	return c.Call(ctx, "get_rendering_report", in)
 }
 
+// GetReportDataInput is the input to get_report_data.
+type GetReportDataInput struct {
+	ClientID  string `json:"clientId"`
+	From      string `json:"from"` // The period's first day (UTC).
+	To        string `json:"to"`   // The period's last day (UTC), inclusive.
+	CompareTo string `json:"compareTo,omitempty"`
+}
+
+// GetReportData calls get_report_data: Every figure a monthly report needs.
+// One read of a client's period, from..to inclusive, against the period before
+// (compareTo previous_period, the default) or the same days a year earlier
+// (previous_year): searchConsole (clicks, impressions, CTR and position in
+// total, branded and non-branded, with the non-branded queries and pages that
+// moved most), analytics (GA4 organic sessions, key events and revenue, or the
+// first-party web analytics' visits), revenue (imported orders by currency,
+// organic and AI channels, attribution coverage — as get_seo_revenue),
+// rankings (each tracker's summary and movers between the period's ends),
+// audit (the latest crawl in the period, its health, and new and fixed issues
+// against the last crawl before it), backlinks (gained and lost), aiVisibility
+// (mention rate against the comparison), annotations (the timeline, with
+// Google's updates) and alerts fired. A section is null with unavailableReason
+// when the client lacks that source. Answers 'pull October's numbers for the
+// report'. Use it first; the single tools go deeper on one section. Free.
+func (c *Client) GetReportData(ctx context.Context, in GetReportDataInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_report_data", in)
+}
+
 // GetRobotsHistoryInput is the input to get_robots_history.
 type GetRobotsHistoryInput struct {
 	ClientID string `json:"clientId"`
@@ -5893,11 +5996,12 @@ type GetRunStatusInput struct {
 }
 
 // GetRunStatus calls get_run_status: Get the status of a run. How a run
-// started with refresh_rankings or refresh_domain_data is going: running, done
-// or failed, and — when it failed or captured only some keywords — the reason,
-// written for an agency to act on (a missing vendor key, an unreachable site).
-// Answers 'did that capture work'. A run id that is not this client's, or that
-// has aged out, reads as unknown.
+// started with refresh_rankings (job 'rank'), refresh_domain_data (job
+// 'domain') or recheck_links (job 'links', including a browser re-check with
+// render) is going: running, done or failed, and — when it failed or captured
+// only some keywords — the reason, written for an agency to act on (a missing
+// vendor key, an unreachable site). Answers 'did that capture work'. A run id
+// that is not this client's, or that has aged out, reads as unknown.
 func (c *Client) GetRunStatus(ctx context.Context, in GetRunStatusInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_run_status", in)
 }
@@ -6597,34 +6701,41 @@ func (c *Client) GetTopicalAuthority(ctx context.Context, in GetTopicalAuthority
 
 // GetToxicLinkRiskInput is the input to get_toxic_link_risk.
 type GetToxicLinkRiskInput struct {
-	ClientID   string         `json:"clientId"`
-	MoneyTerms []string       `json:"moneyTerms,omitempty"`
-	SpamScores map[string]any `json:"spamScores,omitempty"` // Domain → DataForSEO spam score, from get_backlink_spam_scores.
-	MinVerdict string         `json:"minVerdict,omitempty"`
-	Limit      *int64         `json:"limit,omitempty"`
+	ClientID        string         `json:"clientId"`
+	MoneyTerms      []string       `json:"moneyTerms,omitempty"`
+	SpamScores      map[string]any `json:"spamScores,omitempty"`      // Domain → DataForSEO spam score, from get_backlink_spam_scores.
+	FetchSpamScores *bool          `json:"fetchSpamScores,omitempty"` // True to buy the vendor's spam score for every linking site inside this call (one paid request of up to 1,000 sites, the price of get_backlink_spam_scores; sites
+	MinVerdict      string         `json:"minVerdict,omitempty"`
+	Limit           *int64         `json:"limit,omitempty"`
+	MaxCostMicros   *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). A purchase that would take the call past it is refused before anything is bought. Pass the
+	DryRun          *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
 }
 
 // GetToxicLinkRisk calls get_toxic_link_risk: Which linking sites are a risk,
 // and why. Judges each site linking to the client from the evidence a person
-// can check: the vendor's spam score (pass spamScores from
-// get_backlink_spam_scores), sitewide links (the link on most of the pages we
-// hold of the site: a footer or blogroll), link-seller neighbourhoods (a site
-// linking out to hundreds of domains from few pages), commercial exact-match
-// anchors (pass moneyTerms; brand terms are excluded), the vendor links' own
-// authority and outbound signals, and claude-seo's thirty toxic patterns where
-// the data allows (a page with 10,000+ or 50+ outbound links, a domain
-// registered under 30 days ago with 100+ outbound links or re-registered after
-// it lapsed — from RDAP for the sites linking out most — pharma or casino
-// injections, sitewide links and exact-match anchors from unrelated sites,
-// foreign-language and parked sites, article directories, forum profiles,
-// press release wires, coupon sites, comment links, unrelated niches when
-// moneyTerms say what the client does), each pattern reported flagged, clear
-// or unmeasured with why. disavow says whether a file is worth making (toxic
-// over 10% of the sites: yes; under 2%: no). A verdict (healthy, review,
-// toxic) and every reason with its detail; whether the last saved disavow file
-// already names the site, and the toxic sites that appeared since it. Answers
-// 'which of our links are toxic and why' and 'what should go in the disavow
-// file now'. 'review' means look, not disavow. Free.
+// can check: the vendor's spam score (fetchSpamScores: true buys it for every
+// linking site inside this call — one paid DataForSEO request of up to 1,000
+// sites, the price of get_backlink_spam_scores, with sites scored in the last
+// 30 days reused free; or pass spamScores you already have), sitewide links
+// (the link on most of the pages we hold of the site: a footer or blogroll),
+// link-seller neighbourhoods (a site linking out to hundreds of domains from
+// few pages), commercial exact-match anchors (pass moneyTerms; brand terms are
+// excluded), the vendor links' own authority and outbound signals, and
+// claude-seo's thirty toxic patterns where the data allows (a page with
+// 10,000+ or 50+ outbound links, a domain registered under 30 days ago with
+// 100+ outbound links or re-registered after it lapsed — from RDAP for the
+// sites linking out most — pharma or casino injections, sitewide links and
+// exact-match anchors from unrelated sites, foreign-language and parked sites,
+// article directories, forum profiles, press release wires, coupon sites,
+// comment links, unrelated niches when moneyTerms say what the client does),
+// each pattern reported flagged, clear or unmeasured with why. disavow says
+// whether a file is worth making (toxic over 10% of the sites: yes; under 2%:
+// no). A verdict (healthy, review, toxic) and every reason with its detail;
+// whether the last saved disavow file already names the site, and the toxic
+// sites that appeared since it. Answers 'which of our links are toxic and why'
+// and 'what should go in the disavow file now'. 'review' means look, not
+// disavow. Free without fetchSpamScores; with it, quote it with estimate_cost
+// or dryRun first.
 func (c *Client) GetToxicLinkRisk(ctx context.Context, in GetToxicLinkRiskInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_toxic_link_risk", in)
 }
@@ -7642,6 +7753,23 @@ func (c *Client) ListRecentAlerts(ctx context.Context, in ListRecentAlertsInput)
 	return c.Call(ctx, "list_recent_alerts", in)
 }
 
+// ListReportLinksInput is the input to list_report_links.
+type ListReportLinksInput struct {
+	ClientID string `json:"clientId,omitempty"`
+}
+
+// ListReportLinks calls list_report_links: List live report links. The share
+// links made with create_report_link that still open, newest first, for one
+// client or (without clientId) every client the caller can see: each with
+// linkId, the report, its period, when it was made and by whom, when it
+// expires, and when it was last opened (lastViewedAt, null if never) with a
+// view count. Answers 'which report links are out there' and 'has the client
+// opened the report'. The address itself is not returned: it is a secret shown
+// once and never stored, so make a new link to send it again. Free.
+func (c *Client) ListReportLinks(ctx context.Context, in ListReportLinksInput) (json.RawMessage, error) {
+	return c.Call(ctx, "list_report_links", in)
+}
+
 // ListReportSchedulesInput is the input to list_report_schedules.
 type ListReportSchedulesInput struct {
 	ClientID string `json:"clientId"`
@@ -8182,16 +8310,27 @@ func (c *Client) QueueURLInspections(ctx context.Context, in QueueURLInspections
 
 // RecheckLinksInput is the input to recheck_links.
 type RecheckLinksInput struct {
-	ClientID string `json:"clientId"`
+	ClientID   string   `json:"clientId"`
+	Render     *bool    `json:"render,omitempty"`     // True to read the unverifiable_js pages (or sourceUrls) in a real browser, up to 25.
+	SourceURLs []string `json:"sourceUrls,omitempty"` // With render: the linking pages to read, from get_link_checks. Default: those marked unverifiable_js.
 }
 
 // RecheckLinks calls recheck_links: Re-check the pages that link to a client.
 // Sends our crawler to the pages said to link to the client to see whether
 // each still does — slowly and politely, so it takes a while; read the result
 // with get_link_checks. A second request within the hour lands on the check
-// already running. No vendor charge, but it visits other people's sites on the
+// already running. render: true instead reads, in a real browser, the pages
+// the last check marked unverifiable_js (app shells whose links JavaScript
+// draws) — or the sourceUrls given, if the link checks know them — up to 25 a
+// run, and re-judges each link as live, lost or moved (a page that draws
+// nothing even in the browser stays unverifiable_js, and one that will not
+// load keeps its verdict); it runs in the background, so poll get_run_status
+// with job 'links' and the runId, then read get_link_checks (rendered: true on
+// those pages). No vendor charge, but it visits other people's sites on the
 // client's behalf, so it needs client:manage. Refused when the client has no
-// rank tracker yet. Answers 'check our links again'.
+// rank tracker yet (HTML) or no page is waiting on a browser (render:
+// nothing_to_render). Answers 'check our links again' and 'check the
+// JavaScript pages properly'.
 func (c *Client) RecheckLinks(ctx context.Context, in RecheckLinksInput) (json.RawMessage, error) {
 	return c.Call(ctx, "recheck_links", in)
 }
@@ -8296,7 +8435,7 @@ type RefreshRankingsInput struct {
 // Answers 'get me today's positions'. Quote it with estimate_cost first; with
 // maxCostMicros the run is refused before it starts when its estimate is over
 // the limit. Runs in the background: poll get_run_status with job 'rank', then
-// read get_rankings or get_rank_summary. A second request within the same
+// read get_rank_history or get_rank_summary. A second request within the same
 // minute lands on the run already going rather than paying twice.
 func (c *Client) RefreshRankings(ctx context.Context, in RefreshRankingsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "refresh_rankings", in)
@@ -8476,6 +8615,20 @@ func (c *Client) ResendTeamInvite(ctx context.Context, in ResendTeamInviteInput)
 	return c.Call(ctx, "resend_team_invite", in)
 }
 
+// RestoreClientInput is the input to restore_client.
+type RestoreClientInput struct {
+	ClientID string `json:"clientId"`
+}
+
+// RestoreClient calls restore_client: Restore an archived client. Brings an
+// archived client back: it is listed, tracked, crawled and reported on again,
+// with its history as it was, and counts against the plan once more (refused
+// when the plan's client limit is reached). Answers 'we're working with them
+// again'. Safe to repeat: restored is false when the client was not archived.
+func (c *Client) RestoreClient(ctx context.Context, in RestoreClientInput) (json.RawMessage, error) {
+	return c.Call(ctx, "restore_client", in)
+}
+
 // RevokeAPIKeyInput is the input to revoke_api_key.
 type RevokeAPIKeyInput struct {
 	KeyID string `json:"keyId"`
@@ -8542,6 +8695,20 @@ func (c *Client) RevokePortalLink(ctx context.Context, in RevokePortalLinkInput)
 	return c.Call(ctx, "revoke_portal_link", in)
 }
 
+// RevokeReportLinkInput is the input to revoke_report_link.
+type RevokeReportLinkInput struct {
+	LinkID string `json:"linkId"`
+}
+
+// RevokeReportLink calls revoke_report_link: Turn off one report link. Stops
+// one link made with create_report_link (linkId from list_report_links or from
+// create_report_link's answer) at once, leaving the report's other links
+// working. Answers 'I sent the report link to the wrong person'. Revoking a
+// link twice keeps the first time. Free.
+func (c *Client) RevokeReportLink(ctx context.Context, in RevokeReportLinkInput) (json.RawMessage, error) {
+	return c.Call(ctx, "revoke_report_link", in)
+}
+
 // RevokeReportLinksInput is the input to revoke_report_links.
 type RevokeReportLinksInput struct {
 	ClientID string `json:"clientId"`
@@ -8550,8 +8717,9 @@ type RevokeReportLinksInput struct {
 
 // RevokeReportLinks calls revoke_report_links: Turn off a report's links.
 // Stops every link made so far with create_report_link for one saved report,
-// at once. Answers 'I sent the report link to the wrong person'. Links made
-// afterwards work as normal. Free.
+// at once. Answers 'turn off all the links to this report'. To stop one link
+// and keep the rest, revoke_report_link. Links made afterwards work as normal.
+// Free.
 func (c *Client) RevokeReportLinks(ctx context.Context, in RevokeReportLinksInput) (json.RawMessage, error) {
 	return c.Call(ctx, "revoke_report_links", in)
 }
@@ -9371,18 +9539,26 @@ func (c *Client) SetLinkProspectStatus(ctx context.Context, in SetLinkProspectSt
 // SetPathOwnersInput is the input to set_path_owners.
 type SetPathOwnersInput struct {
 	ClientID string           `json:"clientId"`
-	Owners   []map[string]any `json:"owners"`
+	Owners   []map[string]any `json:"owners,omitempty"`
+	Mode     string           `json:"mode,omitempty"`   // replace: owners is the whole list. merge: owners are added or updated, remove is dropped, the rest kept.
+	Remove   []string         `json:"remove,omitempty"` // Prefixes to drop, with mode merge.
+	DryRun   *bool            `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
 }
 
 // SetPathOwners calls set_path_owners: Say who owns which part of the site.
 // For a site built on several platforms, names the owner (and a contact) of
 // each path prefix: /docs, /blog and /community on one vendor, the shop on
-// another. Replaces the client's whole list; an empty list clears it. A URL
-// belongs to the longest prefix it falls under, on segment boundaries (/docs
-// covers /docs/x, not /docsearch); / is the catch-all. Then get_audit_summary
-// and list_issue_pages split issues by owner, create_tasks_from_audit puts the
-// owner on each task, and the digest groups its fixes by owner. Answers 'the
-// docs team owns /docs, send those fixes to them'. Free.
+// another. mode replace (the default) makes owners the client's whole list,
+// and an empty list clears it; mode merge adds or updates the prefixes given,
+// drops those in remove, and keeps every other. The answer lists the resulting
+// owners and the changes: added, updated (with what it was), removed and kept.
+// dryRun: true saves nothing and answers the same, to check a change first. A
+// URL belongs to the longest prefix it falls under, on segment boundaries
+// (/docs covers /docs/x, not /docsearch); / is the catch-all. Then
+// get_audit_summary and list_issue_pages split issues by owner,
+// create_tasks_from_audit puts the owner on each task, and the digest groups
+// its fixes by owner. Answers 'the docs team owns /docs, send those fixes to
+// them'. Free.
 func (c *Client) SetPathOwners(ctx context.Context, in SetPathOwnersInput) (json.RawMessage, error) {
 	return c.Call(ctx, "set_path_owners", in)
 }
@@ -9887,6 +10063,36 @@ type UpdateAlertRuleInput struct {
 // signal. Quote it first with estimate_cost.
 func (c *Client) UpdateAlertRule(ctx context.Context, in UpdateAlertRuleInput) (json.RawMessage, error) {
 	return c.Call(ctx, "update_alert_rule", in)
+}
+
+// UpdateBusinessProfileInput is the input to update_business_profile.
+type UpdateBusinessProfileInput struct {
+	ClientID   string         `json:"clientId"`
+	LocationID string         `json:"locationId,omitempty"` // The client's location, from list_local_locations. Default: its one connected location.
+	Changes    map[string]any `json:"changes"`
+	DryRun     *bool          `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
+}
+
+// UpdateBusinessProfile calls update_business_profile: Change a Google
+// Business Profile listing. Changes the client's own Google Business Profile
+// listing through its connected Business Profile (the connection review
+// replies are posted with): regularHours (the whole week, 24-hour HH:MM,
+// closeDay past midnight), specialHours (holidays and one-off dates, closed or
+// open–close; needs regular hours on the listing), description (up to 750
+// characters), phone (primary and up to two additional), website, categories
+// (Google ids such as gcid:dentist; primary and up to nine additional) and
+// simple yes/no attributes by Google id. Only the fields given are changed
+// (locations.patch with an updateMask; attributes through updateAttributes);
+// phone and category lists Google replaces whole keep the half not given from
+// the listing. dryRun: true changes nothing and returns the exact patch and
+// updateMask, the listing's fields before and after, and Google's own check of
+// the change (validateOnly) — show it to the person first. Refused with
+// missing_scope when the connection was not granted permission to manage the
+// listing, and not_connected when the location has none; next says how to
+// connect it. Google may hold a change for review before it shows. Answers
+// 'update our opening hours' and 'change the business description'. Free.
+func (c *Client) UpdateBusinessProfile(ctx context.Context, in UpdateBusinessProfileInput) (json.RawMessage, error) {
+	return c.Call(ctx, "update_business_profile", in)
 }
 
 // UpdateClientInput is the input to update_client.
