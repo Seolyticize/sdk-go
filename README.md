@@ -1,6 +1,6 @@
 # Seolyticize for Go
 
-Every [Seolyticize](https://seolyticize.com) API tool as a typed method, and package `site` for analytics, IndexNow and deploys. Standard library only.
+Every [Seolyticize](https://seolyticize.com) API tool (302 in v0.3.0) as a typed method, and package `site` for analytics, IndexNow and deploys. Standard library only.
 
 ```sh
 go get github.com/Seolyticize/sdk-go
@@ -16,6 +16,19 @@ client := seolyticize.New("") // reads SEOLYTICIZE_API_KEY
 manifest, err := client.OnboardSite(ctx, seolyticize.OnboardSiteInput{Domain: "example.com", Framework: "html"})
 // …deploy the files and snippet in manifest, then:
 checklist, err := client.VerifySite(ctx, seolyticize.VerifySiteInput{ClientID: "client_…"})
+```
+
+Paid research (any domain, the AI answer index, Maps, AI Mode beside rank) takes `MaxCostMicros`. Quote the exact call with `EstimateCost` first, then pass the quote as the limit:
+
+```go
+ranked, err := client.GetRankedKeywords(ctx, seolyticize.GetRankedKeywordsInput{
+	ClientID:      "client_…",
+	Target:        "rival.com/blog/",
+	Change:        "new",
+	MaxCostMicros: seolyticize.Ptr(int64(50_000)),
+})
+pages, err := client.GetLandingPages(ctx, seolyticize.GetLandingPagesInput{ClientID: "client_…", TrackerID: "tracker_…"})
+aiMode, err := client.GetTrackerAIMode(ctx, seolyticize.GetTrackerAIModeInput{ClientID: "client_…", TrackerID: "tracker_…"})
 ```
 
 Results are the tool's JSON as `json.RawMessage`; unmarshal into the shape you need. Optional numbers and booleans are pointers: `Limit: seolyticize.Ptr(int64(50))`. `client.Call(ctx, "tool_name", input)` reaches tools newer than this module; `client.ListTools(ctx, "onboarding")` lists what your key may call.
