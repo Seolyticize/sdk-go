@@ -42,7 +42,7 @@ func AnalyticsTag(siteKey string, options TagOptions) string {
 	if len(options.Track) > 0 {
 		attrs = append(attrs, fmt.Sprintf(`data-track="%s"`, html.EscapeString(strings.Join(options.Track, " "))))
 	}
-	attrs = append(attrs, fmt.Sprintf(`src="%s/a.js"`, html.EscapeString(strings.TrimRight(base, "/"))))
+	attrs = append(attrs, fmt.Sprintf(`src="%s/a.js?v=2"`, html.EscapeString(strings.TrimRight(base, "/"))))
 	return "<script " + strings.Join(attrs, " ") + "></script>"
 }
 
@@ -139,7 +139,7 @@ func post(ctx context.Context, url string, body any, into any, timeout time.Dura
 		return 0, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("User-Agent", "seolyticize-go-site/0.5.1")
+	request.Header.Set("User-Agent", "seolyticize-go-site/0.5.2")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return 0, err

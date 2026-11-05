@@ -11,7 +11,7 @@ import (
 
 func TestAnalyticsTag(t *testing.T) {
 	tag := AnalyticsTag("abc123", TagOptions{Exclude: []string{"/app/*", "/verify"}, Track: []string{"outbound"}})
-	for _, want := range []string{`data-site="abc123"`, `data-exclude="/app/*,/verify"`, `data-track="outbound"`, `src="https://seolyticize.com/a.js"`, "defer"} {
+	for _, want := range []string{`data-site="abc123"`, `data-exclude="/app/*,/verify"`, `data-track="outbound"`, `src="https://seolyticize.com/a.js?v=2"`, "defer"} {
 		if !strings.Contains(tag, want) {
 			t.Errorf("tag %q lacks %q", tag, want)
 		}

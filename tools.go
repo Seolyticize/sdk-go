@@ -529,7 +529,7 @@ type ApplyManifestInput struct {
 	BudgetAlertAt    *float64         `json:"budgetAlertAt,omitempty"` // The share of the budget that alerts (0.8 = 80%). Left as it is when omitted.
 	DomainSweep      *bool            `json:"domainSweep,omitempty"`
 	DeployHook       *bool            `json:"deployHook,omitempty"`
-	HealthKey        *bool            `json:"healthKey,omitempty"` // Also make the read-only key for seolyticize doctor, as onboard_site does; shown once, and kept on later runs.
+	HealthKey        *bool            `json:"healthKey,omitempty"` // Also make the read-only key for seolyticize doctor, as onboard_site does; shown once at the top of the answer as healthKey.key, and kept on later runs.
 	Brief            map[string]any   `json:"brief,omitempty"`
 	Analytics        map[string]any   `json:"analytics,omitempty"` // set_up_web_analytics arguments; each list replaces the one there.
 	Crawl            map[string]any   `json:"crawl,omitempty"`     // set_crawl_settings arguments without clientId, such as {render: "shells", stripParams: ["ref"]}; checked by that tool.
@@ -1810,9 +1810,10 @@ type CreateWebhookInput struct {
 // again. Events: crawl.completed, gsc.synced, rank.moved, backlink.new,
 // backlink.lost, issue.new_critical, ai.citation.gained, ai.citation.lost,
 // competitor.page.new, budget.threshold, alert.fired, vendor.balance_low,
-// vendor.balance_empty. clientId limits it to one client; null is every
-// client. The secret is in the response once. Answers 'tell my system when a
-// crawl finishes'. Free.
+// vendor.balance_empty. vendor.balance_low and vendor.balance_empty fire at
+// most once a week while the balance stays low, not once per crossing.
+// clientId limits it to one client; null is every client. The secret is in the
+// response once. Answers 'tell my system when a crawl finishes'. Free.
 func (c *Client) CreateWebhook(ctx context.Context, in CreateWebhookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_webhook", in)
 }
@@ -4062,12 +4063,14 @@ type GetConversionsInput struct {
 // GetConversions calls get_conversions: Conversions by landing page and
 // source. Conversions (sign-ups, purchases, any goal) by the page a visit
 // landed on, its source or its referrer, with visits, converting visits,
-// conversion rate and value — and, by landing page, the Search Console queries
-// that bring those visits. Answers 'which pages and queries actually make
-// money' and 'what is organic search worth'. source web_analytics uses the
-// cookieless analytics' custom events (goals: the event names; default every
-// event; value from a 'value' property); ga4 uses GA4's key events on organic
-// sessions. channel narrows to search engines or AI assistants. Free.
+// conversion rate (of visits with a pageview, null when there are none) and
+// value — and, by landing page, the Search Console queries that bring those
+// visits. Answers 'which pages and queries actually make money' and 'what is
+// organic search worth'. source web_analytics uses the cookieless analytics'
+// custom events (goals: the event names; default the client's event goals, or
+// every event when it has none, which a note says; value from a 'value'
+// property); ga4 uses GA4's key events on organic sessions. channel narrows to
+// search engines or AI assistants. Free.
 func (c *Client) GetConversions(ctx context.Context, in GetConversionsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_conversions", in)
 }
