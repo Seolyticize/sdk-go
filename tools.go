@@ -529,6 +529,7 @@ type ApplyManifestInput struct {
 	BudgetAlertAt    *float64         `json:"budgetAlertAt,omitempty"` // The share of the budget that alerts (0.8 = 80%). Left as it is when omitted.
 	DomainSweep      *bool            `json:"domainSweep,omitempty"`
 	DeployHook       *bool            `json:"deployHook,omitempty"`
+	HealthKey        *bool            `json:"healthKey,omitempty"` // Also make the read-only key for seolyticize doctor, as onboard_site does; shown once, and kept on later runs.
 	Brief            map[string]any   `json:"brief,omitempty"`
 	Analytics        map[string]any   `json:"analytics,omitempty"` // set_up_web_analytics arguments; each list replaces the one there.
 	Crawl            map[string]any   `json:"crawl,omitempty"`     // set_crawl_settings arguments without clientId, such as {render: "shells", stripParams: ["ref"]}; checked by that tool.
@@ -1478,9 +1479,11 @@ func (c *Client) CreateDataSync(ctx context.Context, in CreateDataSyncInput) (js
 
 // CreateDeployHookInput is the input to create_deploy_hook.
 type CreateDeployHookInput struct {
-	ClientID   string `json:"clientId"`
-	SitemapURL string `json:"sitemapUrl,omitempty"` // Read this sitemap instead of robots.txt's Sitemap: line or /sitemap.xml.
-	IfMissing  *bool  `json:"ifMissing,omitempty"`  // Leave an existing hook alone instead of refusing with hook_exists.
+	ClientID   string   `json:"clientId"`
+	SitemapURL string   `json:"sitemapUrl,omitempty"` // Read this sitemap instead of robots.txt's Sitemap: line or /sitemap.xml.
+	Sitemaps   []string `json:"sitemaps,omitempty"`   // Sitemaps to read as well as the site's own, on any host (a CMS elsewhere). Every call diffs each one and the reply gives bySitemap: its pages and how many chang
+	PathURL    *bool    `json:"pathUrl,omitempty"`    // false: leave webhookUrl, the secret in a path, out of the answer.
+	IfMissing  *bool    `json:"ifMissing,omitempty"`  // Leave an existing hook alone instead of refusing with hook_exists.
 }
 
 // CreateDeployHook calls create_deploy_hook: Create a deploy hook. Answers
@@ -1493,11 +1496,13 @@ type CreateDeployHookInput struct {
 // hookId and url (neither is secret), secret (sent as Authorization: Bearer;
 // shown only here), webhookUrl (the secret in the path, only for senders that
 // cannot set a header, such as Netlify, Vercel, Cloudflare Pages and
-// Forumulate; treat that whole URL as a secret) and howToCall for each
-// platform. A client that already has a hook is refused with hook_exists and
-// nothing changes; rotate_deploy_hook replaces the secret. With ifMissing:
-// true an existing hook is left alone and returned as {created: false} without
-// a secret, so a provisioning script can run it on every deploy safely. Free.
+// Forumulate; treat that whole URL as a secret, since tools print URLs; it
+// works for as long as the hook does, by design, and pathUrl: false leaves it
+// out of the answer) and howToCall for each platform. A client that already
+// has a hook is refused with hook_exists and nothing changes;
+// rotate_deploy_hook replaces the secret. With ifMissing: true an existing
+// hook is left alone and returned as {created: false} without a secret, so a
+// provisioning script can run it on every deploy safely. Free.
 func (c *Client) CreateDeployHook(ctx context.Context, in CreateDeployHookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_deploy_hook", in)
 }
@@ -8217,6 +8222,7 @@ type OnboardSiteInput struct {
 	Framework        string   `json:"framework,omitempty"`
 	Keywords         []string `json:"keywords,omitempty"`
 	Verification     string   `json:"verification,omitempty"`     // file (a page at the site root, the default), meta (a tag in the <head>) or dns (a TXT record, which also covers every subdomain and protocol).
+	HealthKey        *bool    `json:"healthKey,omitempty"`        // Also make a read-only key pinned to this client that can spend nothing, for seolyticize doctor. It is shown once in healthKey.key; a later call keeps it and ret
 	TrackerFrequency string   `json:"trackerFrequency,omitempty"` // How often the client's rank tracker runs once it has keywords: weekly is the default for a new tracker. Applied to an existing client's trackers too. update_ran
 }
 
@@ -8997,8 +9003,10 @@ func (c *Client) RewriteSection(ctx context.Context, in RewriteSectionInput) (js
 
 // RotateDeployHookInput is the input to rotate_deploy_hook.
 type RotateDeployHookInput struct {
-	ClientID   string `json:"clientId"`
-	SitemapURL string `json:"sitemapUrl,omitempty"` // Read this sitemap from now on.
+	ClientID   string   `json:"clientId"`
+	SitemapURL string   `json:"sitemapUrl,omitempty"` // Read this sitemap from now on.
+	Sitemaps   []string `json:"sitemaps,omitempty"`   // Sitemaps to read as well as the site's own, on any host (a CMS elsewhere). Every call diffs each one and the reply gives bySitemap: its pages and how many chang
+	PathURL    *bool    `json:"pathUrl,omitempty"`    // false: leave webhookUrl, the secret in a path, out of the answer.
 }
 
 // RotateDeployHook calls rotate_deploy_hook: Rotate the deploy hook's secret.

@@ -1,6 +1,6 @@
 # Seolyticize for Go
 
-Every [Seolyticize](https://seolyticize.com) API tool (about 500 in v0.5.0) as a typed method, and package `site` for analytics, IndexNow and deploys. Standard library only.
+Every [Seolyticize](https://seolyticize.com) API tool (about 500 in v0.5.1) as a typed method, and package `site` for analytics, IndexNow and deploys. Standard library only.
 
 ```sh
 go get github.com/Seolyticize/sdk-go
