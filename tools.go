@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 511
+const ToolCount = 519
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -192,6 +192,7 @@ var readOnlyTools = map[string]bool{
 	"get_vitals_history":              true,
 	"get_volume_calibration":          true,
 	"get_web_analytics_breakdown":     true,
+	"get_web_analytics_realtime":      true,
 	"get_web_analytics_setup":         true,
 	"get_web_analytics_summary":       true,
 	"get_written_report":              true,
@@ -210,6 +211,7 @@ var readOnlyTools = map[string]bool{
 	"list_api_keys":                   true,
 	"list_client_facts":               true,
 	"list_clients":                    true,
+	"list_collect_keys":               true,
 	"list_connected_apps":             true,
 	"list_content_plan":               true,
 	"list_conversion_goals":           true,
@@ -217,6 +219,7 @@ var readOnlyTools = map[string]bool{
 	"list_crawls":                     true,
 	"list_data_syncs":                 true,
 	"list_digest_schedules":           true,
+	"list_external_event_senders":     true,
 	"list_funnels":                    true,
 	"list_goals":                      true,
 	"list_integrations":               true,
@@ -355,13 +358,14 @@ func (c *Client) AddCompetitors(ctx context.Context, in AddCompetitorsInput) (js
 
 // AddDefaultAlertsInput is the input to add_default_alerts.
 type AddDefaultAlertsInput struct {
-	ClientID        string   `json:"clientId,omitempty"`
-	AllClients      *bool    `json:"allClients,omitempty"`
-	Channel         string   `json:"channel,omitempty"`
-	WebhookURL      string   `json:"webhookUrl,omitempty"`
-	EmailRecipients []string `json:"emailRecipients,omitempty"`
-	TelegramChatID  string   `json:"telegramChatId,omitempty"`
-	Include         []string `json:"include,omitempty"`
+	ClientID                 string   `json:"clientId,omitempty"`
+	AllClients               *bool    `json:"allClients,omitempty"`
+	Channel                  string   `json:"channel,omitempty"`
+	WebhookURL               string   `json:"webhookUrl,omitempty"`
+	EmailRecipients          []string `json:"emailRecipients,omitempty"`
+	TelegramChatID           string   `json:"telegramChatId,omitempty"`
+	Include                  []string `json:"include,omitempty"`
+	UptimeMonitoredElsewhere *bool    `json:"uptimeMonitoredElsewhere,omitempty"` // true when another monitor (Watchtower, an uptime service) owns uptime: site-unreachable is not added, and one the client already has is paused (paused), so the
 }
 
 // AddDefaultAlerts calls add_default_alerts: Add the default alerts. Gives a
@@ -374,10 +378,12 @@ type AddDefaultAlertsInput struct {
 // is, so it is safe to repeat. channel with webhookUrl (slack, webhook,
 // discord), emailRecipients (email) or telegramChatId (telegram) sends them
 // there instead, and moves default rules still going only to the owner's email
-// (moved). include: ["page-changes"] adds a fifth: own pages whose title, meta
-// description, H1 or canonical changed, went noindex or 404. Pass clientId for
-// one client, or allClients: true for every live client the key may manage.
-// Answers 'set up the usual alerts'. Free.
+// (moved). uptimeMonitoredElsewhere: true leaves site-unreachable out (and
+// pauses an existing one) when another monitor owns uptime. include:
+// ["page-changes"] adds a fifth: own pages whose title, meta description, H1
+// or canonical changed, went noindex or 404. Pass clientId for one client, or
+// allClients: true for every live client the key may manage. Answers 'set up
+// the usual alerts'. Free.
 func (c *Client) AddDefaultAlerts(ctx context.Context, in AddDefaultAlertsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "add_default_alerts", in)
 }
@@ -1184,6 +1190,45 @@ func (c *Client) CompareSites(ctx context.Context, in CompareSitesInput) (json.R
 	return c.Call(ctx, "compare_sites", in)
 }
 
+// ConnectExternalEventsInput is the input to connect_external_events.
+type ConnectExternalEventsInput struct {
+	ClientID     string         `json:"clientId"`
+	Sender       string         `json:"sender"`                 // A name for the sender, unique on this client: atlas, stripe, clerk, backend.
+	SenderSecret string         `json:"senderSecret,omitempty"` // The sender's own signing secret, for a sender that makes one (Stripe's whsec_…, a Svix endpoint's). Left out, a new secret is made for you to give the sender.
+	Events       map[string]any `json:"events,omitempty"`       // Sender event type → goal event name, e.g. {"customer.subscription.created": "Subscription started"}. Defaults to user.created, organization.created and subscrip
+}
+
+// ConnectExternalEvents calls connect_external_events: Count sign-ups from
+// your auth or billing system as goals. Makes a system that signs its webhooks
+// (an auth provider, a billing system, your own backend) a source of goal
+// events, with no call from the app. A client can have several senders (auth
+// for sign-ups, billing for subscriptions), each named by sender and all
+// posting to one webhookUrl; a delivery belongs to the sender whose secret
+// verifies it. Adds the sender, or replaces the one of that name. Returns
+// webhookUrl to register with the sender and secret (whsec_…, shown only here;
+// calling again for the sender replaces it) to give it as the signing secret;
+// a sender that makes its own secret (Stripe, Svix, Clerk) has it passed as
+// senderSecret instead. Accepts Standard Webhooks signatures (webhook-*,
+// svix-* or atlas-* headers) and t=,v1= signatures (Stripe-Signature,
+// Seolyticize-Signature), five minutes' tolerance, a retried delivery counted
+// once. Each event whose type is in the sender's events (default user.created
+// → Signup, organization.created → Organization created, subscription.created
+// → Subscription started) is recorded as that goal event with the sender as
+// its source property, credited to the visit whose token (from
+// seolyticize("visit") or useVisit()) the event's object carries as
+// seolyticize_visit, directly or in its metadata (public_metadata,
+// unsafe_metadata, metadata, user_metadata, raw_user_meta_data, custom_data),
+// so the goal report shows the landing page and source of the visit that
+// signed up. An event without a token, or of a type not in events, is
+// acknowledged and not counted. Needs the cookieless analytics set up.
+// list_external_event_senders lists them; remove_external_event_sender drops
+// one; disconnect_integration {provider: "external_events"} drops all. Answers
+// 'count sign-ups from our auth provider', 'count Stripe subscriptions as
+// goals' and 'stop sending the Signup goal by hand'. Free.
+func (c *Client) ConnectExternalEvents(ctx context.Context, in ConnectExternalEventsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "connect_external_events", in)
+}
+
 // ConnectGoogleAnalyticsServiceAccountInput is the input to connect_google_analytics_service_account.
 type ConnectGoogleAnalyticsServiceAccountInput struct {
 	ClientID   string `json:"clientId"`
@@ -1330,15 +1375,18 @@ func (c *Client) ConnectYandexWithToken(ctx context.Context, in ConnectYandexWit
 
 // CreateAlertRuleInput is the input to create_alert_rule.
 type CreateAlertRuleInput struct {
-	ClientID        string   `json:"clientId"`
-	Kind            string   `json:"kind"`
-	Threshold       int64    `json:"threshold"`
-	CooldownHours   *int64   `json:"cooldownHours,omitempty"`
-	WebhookURL      string   `json:"webhookUrl,omitempty"`
-	Channel         string   `json:"channel,omitempty"`
-	EmailRecipients []string `json:"emailRecipients,omitempty"`
-	TelegramChatID  string   `json:"telegramChatId,omitempty"`
-	PaidSource      *bool    `json:"paidSource,omitempty"`
+	ClientID            string   `json:"clientId"`
+	Kind                string   `json:"kind"`
+	Threshold           int64    `json:"threshold"`
+	CooldownHours       *int64   `json:"cooldownHours,omitempty"`
+	WebhookURL          string   `json:"webhookUrl,omitempty"`
+	Channel             string   `json:"channel,omitempty"`
+	EmailRecipients     []string `json:"emailRecipients,omitempty"`
+	TelegramChatID      string   `json:"telegramChatId,omitempty"`
+	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower API key for the project; hermetica: the client's Hermetica secret key (hm_sk_…, with messages:send). Stored sealed and never shown agai
+	WatchtowerProjectID string   `json:"watchtowerProjectId,omitempty"` // watchtower: the project id, as in /v1/projects/{prj}.
+	HermeticaFrom       string   `json:"hermeticaFrom,omitempty"`       // hermetica: the sender address, verified in the Hermetica workspace.
+	PaidSource          *bool    `json:"paidSource,omitempty"`
 }
 
 // CreateAlertRule calls create_alert_rule: Create an alert rule. Raises an
@@ -1358,10 +1406,17 @@ type CreateAlertRuleInput struct {
 // and stay silent until there is something to compare. Channels: slack
 // (webhookUrl, Slack's format; the default), webhook (webhookUrl, plain JSON),
 // discord (webhookUrl, the channel's Discord webhook as Discord shows it),
-// email (emailRecipients, up to ten) or telegram (telegramChatId, with the
-// agency's bot from Settings). Webhooks must be https and public. With no
-// channel and no destination, the alert goes to the agency owner's email and
-// deliveryNote says so; a channel named without its field is refused as
+// email (emailRecipients, up to ten) telegram (telegramChatId, with the
+// agency's bot from Settings), watchtower (apiKey and watchtowerProjectId:
+// posts an event to that Watchtower project with POST
+// /v1/projects/{prj}/events, alert_type error, warning or info by severity,
+// source seolyticize, aggregation_key the rule id, tags kind:<kind> and
+// client:<clientId>, and the detail and links in its text) or hermetica
+// (apiKey, hermeticaFrom and emailRecipients: the alert email sent through the
+// client's own Hermetica account with POST /v1/transactional/send). The apiKey
+// is stored sealed and never returned. Webhooks must be https and public. With
+// no channel and no destination, the alert goes to the agency owner's email
+// and deliveryNote says so; a channel named without its field is refused as
 // no_delivery_target. paidSource (competitor-new-keywords and web-mentions
 // only; off by default; needs spend permission) also buys the signal from
 // DataForSEO on every sweep: for competitor-new-keywords, Labs ranked keywords
@@ -1492,8 +1547,14 @@ type CreateDeployHookInput struct {
 // sitemap, compares it with the last one, and submits the new and changed
 // pages to IndexNow; the first call records the baseline only. A Forumulate
 // webhook subscribed to page.live can point at it too: each published page is
-// submitted when it goes live and noted on the timeline as a publish. Returns
-// hookId and url (neither is secret), secret (sent as Authorization: Bearer;
+// submitted when it goes live and noted on the timeline as a publish. Calls to
+// url carry the secret as Authorization: Bearer, or sign the raw body with it
+// (Seolyticize-Signature: t=<unix>,v1=<hex HMAC-SHA256 of <t>.<body>>, as
+// create_webhook signs, within 5 minutes), or come signed by a Forumulate
+// webhook whose secret was given to set_deploy_hook_sender_secret. A body may
+// carry {release: {ref, source, environment, time}}, the release marker shared
+// with other tools, shown on the timeline note. Returns hookId and url
+// (neither is secret), secret (sent as Authorization: Bearer or used to sign;
 // shown only here), webhookUrl (the secret in the path, only for senders that
 // cannot set a header, such as Netlify, Vercel, Cloudflare Pages and
 // Forumulate; treat that whole URL as a secret, since tools print URLs; it
@@ -3276,7 +3337,16 @@ type GetAuditSummaryInput struct {
 // accepted as intentional (accept_issue) are taken out of the counts and
 // listed apart in accepted, each with its reason; with path owners set
 // (set_path_owners), each issue says how its pages split between owners
-// (owners) and byOwner totals them.
+// (owners) and byOwner totals them. fixes groups the same findings by URL
+// template (the client's analytics pathTemplates, then paths that differ in
+// one segment under a common prefix, /templates/*): one row per rule and
+// template with its pages, an example page and sharedMessage (the message most
+// of its pages share: the template's one cause), the rule's pages that fit no
+// template in one row of their own; issuesFound counts distinct fixes (one per
+// rule and template, plus one per page that fits no template) and findingPages
+// the pages behind them, accepted findings left out of both. A template row
+// over 50 pages carries acceptIssue, the accept_issue call (dryRun) for when
+// those pages are that way on purpose.
 func (c *Client) GetAuditSummary(ctx context.Context, in GetAuditSummaryInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_audit_summary", in)
 }
@@ -3808,12 +3878,12 @@ type GetClientInput struct {
 }
 
 // GetClient calls get_client: Get a client. One client's settings with its
-// projects, sites and rank trackers (each with its frequency: daily, weekly,
-// monthly or manual, set with update_rank_tracker), whether the paid weekly
-// domain sweep runs (domainSweep, set with set_domain_sweep), and the
-// analytics siteKey and collectUrl (null before set_up_web_analytics). Answers
-// 'what is set up for this client' — use it to find tracker, project and site
-// ids before changing anything.
+// domains (client.domains), projects, sites and rank trackers (each with its
+// frequency: daily, weekly, monthly or manual, set with update_rank_tracker),
+// whether the paid weekly domain sweep runs (domainSweep, set with
+// set_domain_sweep), and the analytics siteKey and collectUrl (null before
+// set_up_web_analytics). Answers 'what is set up for this client' — use it to
+// find tracker, project and site ids before changing anything.
 func (c *Client) GetClient(ctx context.Context, in GetClientInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_client", in)
 }
@@ -4198,11 +4268,15 @@ type GetDeployHookInput struct {
 // deploy hook'. exists, then (when it does) the hook's createdAt, lastCalledAt
 // (the last call, whatever came of it), lastRunAt (the last run that read a
 // sitemap), lastResult (led by the call's source and ref in brackets when it
-// sent them), how many sitemap pages it knows, and howToCall.coolify: the
-// post-deploy command, which reads the URL and secret from
-// SEOLYTICIZE_DEPLOY_HOOK_URL and SEOLYTICIZE_DEPLOY_HOOK_SECRET. hookId is
-// not secret. Never the secret itself: a lost one is replaced with
-// rotate_deploy_hook. Free.
+// sent them), how many sitemap pages it knows, url (the address to call; not
+// secret, the value of SEOLYTICIZE_DEPLOY_HOOK_URL), signing (hookSecret:
+// signed calls work; senderSecret: a sender's own secret is set) and
+// howToCall: anyPipeline, signed (the body signed with Seolyticize-Signature,
+// no secret in the URL), coolify (a git build's post-deployment command),
+// prebuiltImage (seolyticize-notify-deploy --wait-for from the deploy script),
+// githubActions, vercel, forumulate and knownPages. Every call belongs after
+// the new version serves; ref is free text. hookId is not secret. Never the
+// secret itself: a lost one is replaced with rotate_deploy_hook. Free.
 func (c *Client) GetDeployHook(ctx context.Context, in GetDeployHookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_deploy_hook", in)
 }
@@ -6396,9 +6470,12 @@ type GetSEOChangesInput struct {
 // 20% worse in Chrome's field data, a template's Lighthouse performance down
 // 10 points or more. Notice: H2 outline changed, page copy changed (body
 // hash). The description, og, h2 and body fields compare only crawls that
-// recorded them. fields, severity and template narrow it. Answers 'what did
-// the last release break', 'did a template lose its canonicals' and 'why did
-// these pages drop out'. Free.
+// recorded them. fields, severity and template narrow it. deploys lists the
+// deploy notes on the timeline between the two crawls (the deploy hook writes
+// one per call, titled with its source, ref and environment), so each change
+// reads beside the release that shipped it. Answers 'what did the last release
+// break', 'did a template lose its canonicals' and 'why did these pages drop
+// out'. Free.
 func (c *Client) GetSEOChanges(ctx context.Context, in GetSEOChangesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_seo_changes", in)
 }
@@ -6691,7 +6768,11 @@ type GetSiteStatusInput struct {
 // GetSiteStatus calls get_site_status: Site verification and connection
 // status. For a client's sites: whether the IndexNow key file has been
 // published and verified, which Search Console properties are connected and
-// syncing, and the latest crawl. Answers 'is this site set up and verified'.
+// syncing, the latest crawl, and coveredHosts: every host the client's pages
+// are served on (the site's domain, then content platforms linked with
+// link_content_platform), each with whether the analytics counts it, the
+// deploy hook sitemaps read on it and whether the crawl covers it. Answers 'is
+// this site set up and verified' and 'which hosts does Seolyticize watch'.
 func (c *Client) GetSiteStatus(ctx context.Context, in GetSiteStatusInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_site_status", in)
 }
@@ -7067,6 +7148,7 @@ type GetWebAnalyticsBreakdownInput struct {
 	Breakdown string   `json:"breakdown"`
 	Days      *float64 `json:"days,omitempty"` // The period: the last 7, 30 or 90 days, today included.
 	Limit     *int64   `json:"limit,omitempty"`
+	PropName  string   `json:"propName,omitempty"` // With breakdown "props": the custom-event property to list, as sent in p.
 }
 
 // GetWebAnalyticsBreakdown calls get_web_analytics_breakdown: Traffic by page,
@@ -7079,14 +7161,30 @@ type GetWebAnalyticsBreakdownInput struct {
 // Social, Email, Referral, Campaign, Direct), ai_sources (visits from each AI
 // assistant: ChatGPT, Perplexity, Gemini, Copilot, Claude, Google AI Mode and
 // others), ai_landing_pages (the pages AI assistants send visits to, detail
-// naming the assistant) or partners (pageviews by who served the page: "site"
-// for the site's own, or each partner declared with set_up_web_analytics).
-// Each row has key, visitors and count; counts says what count counts, and
-// totalKeys how many rows exist before the limit. Answers 'which pages and
-// sources drive visits'. Refuses with a sentence when web analytics has not
-// been set up for the client. Free.
+// naming the assistant), partners (pageviews by who served the page: "site"
+// for the site's own, or each partner declared with set_up_web_analytics) or
+// props (the values of one custom-event property named in propName, such as
+// "variant", with event counts). Each row has key, visitors and count; counts
+// says what count counts, and totalKeys how many rows exist before the limit.
+// Answers 'which pages and sources drive visits'. Refuses with a sentence when
+// web analytics has not been set up for the client. Free.
 func (c *Client) GetWebAnalyticsBreakdown(ctx context.Context, in GetWebAnalyticsBreakdownInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_web_analytics_breakdown", in)
+}
+
+// GetWebAnalyticsRealtimeInput is the input to get_web_analytics_realtime.
+type GetWebAnalyticsRealtimeInput struct {
+	ClientID string `json:"clientId"`
+}
+
+// GetWebAnalyticsRealtime calls get_web_analytics_realtime: Who is on the site
+// now (first-party). Visitors on the site in the last 5 minutes, from
+// Seolyticize's own web analytics, and topPages: the pages they viewed in that
+// time (path, visitors, pageviews), most visitors first. Answers 'is anyone on
+// the site right now' and 'did the deploy break tracking'. Refuses with a
+// sentence when web analytics has not been set up for the client. Free.
+func (c *Client) GetWebAnalyticsRealtime(ctx context.Context, in GetWebAnalyticsRealtimeInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_web_analytics_realtime", in)
 }
 
 // GetWebAnalyticsSetupInput is the input to get_web_analytics_setup.
@@ -7098,10 +7196,15 @@ type GetWebAnalyticsSetupInput struct {
 // installed. Whether Seolyticize's own cookieless web analytics is set up for
 // a client, with the one-line tracking snippet to install (it sends the page's
 // origin and path and never its query string, except utm_* campaign tags, nor
-// its fragment), the site key, collectUrl for sending events from your own
-// code (get_collect_contract has the fields and limits), the hostnames allowed
-// to report, and lastEventAt (null until the first visit is recorded). Answers
-// 'is the tracking script installed' and 'what snippet do I add to the site'.
+// its fragment), siteKey (the public key the snippet carries as data-site-key
+// or data-site; not the internal site_ id in crawl ids), collectUrl for
+// sending events from your own code (get_collect_contract has the fields and
+// limits), the hostnames allowed to report, includePaths, excludePaths and
+// respectRobots with rules (what the server records and drops, in sentences:
+// the server's settings win over the snippet's data-include and data-exclude),
+// clients (the newest version of each Seolyticize package seen reporting), and
+// lastEventAt (null until the first visit is recorded). Answers 'is the
+// tracking script installed' and 'what snippet do I add to the site'.
 // configured is false when no snippet has been created yet. Free.
 func (c *Client) GetWebAnalyticsSetup(ctx context.Context, in GetWebAnalyticsSetupInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_web_analytics_setup", in)
@@ -7118,10 +7221,12 @@ type GetWebAnalyticsSummaryInput struct {
 // average visit duration from Seolyticize's own web analytics, against the
 // same span before (previous is null when that span was not fully measured),
 // plus a daily series, realtimeVisitors in the last 30 minutes, and notes on
-// how figures are counted. Answers 'how much traffic did the site get' for a
-// client without GA4. Visitors are counted per day without cookies; a figure
-// of null means not measured, not zero. Refuses with a sentence when web
-// analytics has not been set up for the client. Free.
+// how figures are counted. Days before the site's own first event that were
+// imported with import_analytics_csv are filled in the daily series (imported:
+// true) and totalled in imported, never added to summary. Answers 'how much
+// traffic did the site get' for a client without GA4. Visitors are counted per
+// day without cookies; a figure of null means not measured, not zero. Refuses
+// with a sentence when web analytics has not been set up for the client. Free.
 func (c *Client) GetWebAnalyticsSummary(ctx context.Context, in GetWebAnalyticsSummaryInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_web_analytics_summary", in)
 }
@@ -7290,6 +7395,29 @@ type GetZeroClickEstimatesInput struct {
 // less than their volume says'. Free.
 func (c *Client) GetZeroClickEstimates(ctx context.Context, in GetZeroClickEstimatesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_zero_click_estimates", in)
+}
+
+// ImportAnalyticsCSVInput is the input to import_analytics_csv.
+type ImportAnalyticsCSVInput struct {
+	ClientID string `json:"clientId"`
+	Source   string `json:"source"`
+	CSV      string `json:"csv"`              // The CSV file's text, header row first.
+	DryRun   *bool  `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
+}
+
+// ImportAnalyticsCSV calls import_analytics_csv: Import visits from Plausible
+// or Umami. Imports daily visitors, visits and pageviews from another
+// analytics tool's CSV export, so the months before Seolyticize's tag was
+// installed are not empty: Plausible's imported_visitors.csv (or visitors.csv)
+// from its export zip, or Umami's website_event.csv (counted per day) or a
+// daily table with date, visitors and pageviews. Only daily totals are
+// imported, not pages or sources. Imported days show in
+// get_web_analytics_summary only before the site's own first event; importing
+// a day again replaces it. Answers with the days, range and totals read and
+// the lines skipped. Refuses with a sentence when web analytics has not been
+// set up for the client. Free.
+func (c *Client) ImportAnalyticsCSV(ctx context.Context, in ImportAnalyticsCSVInput) (json.RawMessage, error) {
+	return c.Call(ctx, "import_analytics_csv", in)
 }
 
 // ImportClientFactsInput is the input to import_client_facts.
@@ -7488,6 +7616,39 @@ func (c *Client) KeywordTrafficPotential(ctx context.Context, in KeywordTrafficP
 	return c.Call(ctx, "keyword_traffic_potential", in)
 }
 
+// LinkContentPlatformInput is the input to link_content_platform.
+type LinkContentPlatformInput struct {
+	ClientID   string `json:"clientId"`
+	Kind       string `json:"kind"`                 // forumulate for a Forumulate site; other for any CMS or docs host.
+	Host       string `json:"host"`                 // The bare host the pages are served on: formflow.forumulate.com.
+	SitemapURL string `json:"sitemapUrl,omitempty"` // The host's sitemap; found from its robots.txt or /sitemap.xml when left out.
+}
+
+// LinkContentPlatform calls link_content_platform: Link a content platform's
+// host. Answers 'our help, blog or legal pages live on another host
+// (Forumulate, a docs platform)'. Links a host serving the client's pages to
+// the client: adds it to the cookieless analytics hostnames (a visit from a
+// host not listed is refused), and adds its sitemap (sitemapUrl, else each
+// Sitemap: line of the host's robots.txt, else /sitemap.xml, kept only when it
+// answers as a sitemap) to the deploy hook's sitemaps, keeping the hook's
+// secret and baseline, so each call reads its new and changed pages and
+// submits them to IndexNow (which accepts them only when the IndexNow key file
+// is also served on that host). get_site_status lists it under coveredHosts
+// and get_next_steps under content_platform. The site crawl does not follow
+// it: a crawl stays on the client's own domain. On the Forumulate side (from
+// its public guides): set the site key from get_web_analytics_setup as the
+// seolyticize field of PUT /orgs/{orgId}/analytics-tags (or a site's or
+// space's), which sends pageviews with no script, gated as first-party
+// measurement by the consent settings (firstPartyAnalytics); robots.txt names
+// the host's sitemap; and a webhook of kind deploy_hook (events page.published
+// or page.live) pointed at create_deploy_hook's webhookUrl calls the hook
+// after each publish with ?source=forumulate&ref=<event>, which
+// get_deploy_hook's lastResult shows. Forumulate's deploy_hook sends no
+// header, so it needs the webhookUrl holding the secret. Safe to repeat. Free.
+func (c *Client) LinkContentPlatform(ctx context.Context, in LinkContentPlatformInput) (json.RawMessage, error) {
+	return c.Call(ctx, "link_content_platform", in)
+}
+
 // ListAcceptedIssuesInput is the input to list_accepted_issues.
 type ListAcceptedIssuesInput struct {
 	ClientID      string `json:"clientId"`
@@ -7585,6 +7746,24 @@ func (c *Client) ListClients(ctx context.Context, in ListClientsInput) (json.Raw
 	return c.Call(ctx, "list_clients", in)
 }
 
+// ListCollectKeysInput is the input to list_collect_keys.
+type ListCollectKeysInput struct {
+	ClientID string `json:"clientId"`
+}
+
+// ListCollectKeys calls list_collect_keys: Server collect keys and their last
+// use. The client's server collect keys, never the keys themselves: the active
+// one and the one the last issue_server_collect_key replaced, each with id
+// (the first 12 hex characters of its SHA-256), status (active or revoked),
+// createdAt, revokedAt and lastUsedAt (to about a minute). A revoked key is
+// refused, but each refused use is still recorded, so a rotation is confirmed
+// when the active key's lastUsedAt moves and the revoked one's stops. Answers
+// 'is the old collect key still in use somewhere' and 'did the new key reach
+// production'. Free.
+func (c *Client) ListCollectKeys(ctx context.Context, in ListCollectKeysInput) (json.RawMessage, error) {
+	return c.Call(ctx, "list_collect_keys", in)
+}
+
 // ListConnectedAppsInput is the input to list_connected_apps.
 type ListConnectedAppsInput struct {
 }
@@ -7645,7 +7824,16 @@ type ListCrawlIssuesInput struct {
 // newest completed crawl. indexableOnly (default true) leaves out findings on
 // pages search engines will not index as themselves — noindexed, not answering
 // 200, or canonicalised elsewhere — except the findings that explain why; pass
-// false to see everything.
+// false to see everything. fixes groups the same findings by URL template (the
+// client's analytics pathTemplates, then paths that differ in one segment
+// under a common prefix, /templates/*): one row per rule and template with its
+// pages, an example page and sharedMessage (the message most of its pages
+// share: the template's one cause), the rule's pages that fit no template in
+// one row of their own; issuesFound counts distinct fixes (one per rule and
+// template, plus one per page that fits no template) and findingPages the
+// pages behind them, accepted findings left out of both. A template row over
+// 50 pages carries acceptIssue, the accept_issue call (dryRun) for when those
+// pages are that way on purpose.
 func (c *Client) ListCrawlIssues(ctx context.Context, in ListCrawlIssuesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_crawl_issues", in)
 }
@@ -7685,6 +7873,20 @@ type ListDigestSchedulesInput struct {
 // went. Free.
 func (c *Client) ListDigestSchedules(ctx context.Context, in ListDigestSchedulesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_digest_schedules", in)
+}
+
+// ListExternalEventSendersInput is the input to list_external_event_senders.
+type ListExternalEventSendersInput struct {
+	ClientID string `json:"clientId"`
+}
+
+// ListExternalEventSenders calls list_external_event_senders: Senders of
+// signed goal events. The client's connect_external_events senders, each with
+// name and events (its event type → goal event name), and the webhookUrl they
+// all post to; never a secret. null webhookUrl and no senders when none is
+// connected. Answers 'which systems send us sign-ups'. Free.
+func (c *Client) ListExternalEventSenders(ctx context.Context, in ListExternalEventSendersInput) (json.RawMessage, error) {
+	return c.Call(ctx, "list_external_event_senders", in)
 }
 
 // ListFunnelsInput is the input to list_funnels.
@@ -8181,14 +8383,23 @@ type MoveSiteInput struct {
 
 // MoveSite calls move_site: Move a client to a new domain. Answers 'the site
 // moved to a new domain'. Keeps the client, its history and its analytics site
-// key, and moves everything that follows the domain: the site and its rank
-// trackers, the analytics hostnames (the old ones are still accepted for
-// overlapDays, then refused), and the deploy hook (same URL; its next call
-// records a fresh baseline). Issues a Google verification for the new domain
-// and returns the deploy manifest to put on it (IndexNow key file,
-// verification file, tag or TXT record), and adds a 'Domain moved' note to the
-// timeline. Then deploy the manifest on the new domain and call verify_site,
-// which verifies it and adds the new Search Console property. Free.
+// key, and moves everything that follows the domain: the site, its rank
+// trackers (frequency unchanged), its own brand in AI visibility, the IndexNow
+// key, the analytics hostnames (the old ones are still accepted for
+// overlapDays, then refused), and the deploy hook (same URL; sitemaps on the
+// old domain follow, others are listed in otherHosts; its next call records a
+// fresh baseline). Never changes the budget or the domain sweep. notMoved
+// names what cannot follow, with the next step. Safe to repeat: a second call
+// answers alreadyMoved: true with the same manifest and changes nothing.
+// Issues a Google verification for the new domain and returns the deploy
+// manifest to put on it (IndexNow key file, verification file, tag or TXT
+// record), and adds a 'Domain moved' note to the timeline. When the new domain
+// already proves ownership (a DNS TXT record added beforehand), it connects
+// the new Search Console property at once, as a Domain property;
+// searchConsoleProperty says which, or names verify_site. Otherwise deploy the
+// manifest on the new domain and call verify_site, which verifies it and adds
+// the property. The order of every step:
+// https://seolyticize.com/docs/move-a-site. Free.
 func (c *Client) MoveSite(ctx context.Context, in MoveSiteInput) (json.RawMessage, error) {
 	return c.Call(ctx, "move_site", in)
 }
@@ -8718,6 +8929,22 @@ type RemoveCompetitorsInput struct {
 // error.
 func (c *Client) RemoveCompetitors(ctx context.Context, in RemoveCompetitorsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "remove_competitors", in)
+}
+
+// RemoveExternalEventSenderInput is the input to remove_external_event_sender.
+type RemoveExternalEventSenderInput struct {
+	ClientID string `json:"clientId"`
+	Sender   string `json:"sender"`
+}
+
+// RemoveExternalEventSender calls remove_external_event_sender: Stop one
+// sender of signed goal events. Drops one connect_external_events sender: its
+// deliveries are refused from now on, and the client's other senders keep
+// working at the same webhookUrl. removed false when there is no sender of
+// that name. Removing the last one removes the connection. Answers 'stop
+// counting sign-ups from Clerk'. Free.
+func (c *Client) RemoveExternalEventSender(ctx context.Context, in RemoveExternalEventSenderInput) (json.RawMessage, error) {
+	return c.Call(ctx, "remove_external_event_sender", in)
 }
 
 // RemoveKeywordOwnersInput is the input to remove_keyword_owners.
@@ -9741,6 +9968,25 @@ func (c *Client) SetCrawlSettings(ctx context.Context, in SetCrawlSettingsInput)
 	return c.Call(ctx, "set_crawl_settings", in)
 }
 
+// SetDeployHookSenderSecretInput is the input to set_deploy_hook_sender_secret.
+type SetDeployHookSenderSecretInput struct {
+	ClientID     string `json:"clientId"`
+	SenderSecret string `json:"senderSecret"` // The sender's signing secret, or null to forget it.
+}
+
+// SetDeployHookSenderSecret calls set_deploy_hook_sender_secret: Let a sender
+// sign deploy hook calls with its own secret. Answers 'Forumulate signs its
+// webhooks, let it call the deploy hook without a secret in the URL'. Stores a
+// sender's own signing secret (a Forumulate webhook's whsec_…, answered once
+// when the webhook is made) on the client's deploy hook, sealed. A call to the
+// hook's url signed with it (X-Forumulate-Signature v1 over
+// X-Forumulate-Timestamp, within 5 minutes) is then accepted, beside the
+// hook's own secret. null forgets it. The hook's own secret is untouched.
+// Never returned. Free.
+func (c *Client) SetDeployHookSenderSecret(ctx context.Context, in SetDeployHookSenderSecretInput) (json.RawMessage, error) {
+	return c.Call(ctx, "set_deploy_hook_sender_secret", in)
+}
+
 // SetDomainSweepInput is the input to set_domain_sweep.
 type SetDomainSweepInput struct {
 	ClientID string `json:"clientId"`
@@ -9869,6 +10115,7 @@ type SetUpWebAnalyticsInput struct {
 	IncludePaths  []string         `json:"includePaths,omitempty"`  // When set, only pageviews on these paths are recorded: ["/", "/blog/*"]. A custom event elsewhere (a sign-up that lands in the app) still counts, stored without
 	PathTemplates []string         `json:"pathTemplates,omitempty"` // Paths stored under a template when they fit, so names and ids in a path are never stored and their pages count together: ["/:username/:slug"] stores /ada/intro-
 	Partners      []map[string]any `json:"partners,omitempty"`      // Third parties serving pages on this site (a docs, blog or forum host) under the same site key. Their events send p: {source: "<name>"}, are kept only on their p
+	RespectRobots *bool            `json:"respectRobots,omitempty"` // True to drop pageviews on paths the site's robots.txt disallows for "*" (X-Seolyticize-Dropped: robots_disallowed); a custom event there is kept without its pat
 }
 
 // SetUpWebAnalytics calls set_up_web_analytics: Set up web analytics. Creates
@@ -10332,33 +10579,38 @@ func (c *Client) UnacceptIssue(ctx context.Context, in UnacceptIssueInput) (json
 
 // UpdateAlertRuleInput is the input to update_alert_rule.
 type UpdateAlertRuleInput struct {
-	ClientID        string   `json:"clientId"`
-	RuleID          string   `json:"ruleId"`
-	Threshold       *int64   `json:"threshold,omitempty"`
-	CooldownHours   *int64   `json:"cooldownHours,omitempty"`
-	WebhookURL      string   `json:"webhookUrl,omitempty"`
-	Channel         string   `json:"channel,omitempty"`
-	EmailRecipients []string `json:"emailRecipients,omitempty"`
-	TelegramChatID  string   `json:"telegramChatId,omitempty"`
-	Paused          *bool    `json:"paused,omitempty"`
-	PaidSource      *bool    `json:"paidSource,omitempty"`
+	ClientID            string   `json:"clientId"`
+	RuleID              string   `json:"ruleId"`
+	Threshold           *int64   `json:"threshold,omitempty"`
+	CooldownHours       *int64   `json:"cooldownHours,omitempty"`
+	WebhookURL          string   `json:"webhookUrl,omitempty"`
+	Channel             string   `json:"channel,omitempty"`
+	EmailRecipients     []string `json:"emailRecipients,omitempty"`
+	TelegramChatID      string   `json:"telegramChatId,omitempty"`
+	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower API key for the project; hermetica: the client's Hermetica secret key (hm_sk_…, with messages:send). Stored sealed and never shown agai
+	WatchtowerProjectID string   `json:"watchtowerProjectId,omitempty"` // watchtower: the project id, as in /v1/projects/{prj}.
+	HermeticaFrom       string   `json:"hermeticaFrom,omitempty"`       // hermetica: the sender address, verified in the Hermetica workspace.
+	Paused              *bool    `json:"paused,omitempty"`
+	PaidSource          *bool    `json:"paidSource,omitempty"`
 }
 
 // UpdateAlertRule calls update_alert_rule: Update an alert rule. Changes a
 // rule's threshold, cooldown or delivery (channel, webhookUrl — null removes
-// it — emailRecipients, telegramChatId), or pauses and resumes it, or turns
-// its paidSource on or off. Answers 'this alert is too noisy', 'send this to
-// email instead' or 'mute this for now'. Pausing keeps the rule's history.
-// paidSource (competitor-new-keywords and web-mentions only; off by default;
-// needs spend permission) also buys the signal from DataForSEO on every sweep:
-// for competitor-new-keywords, Labs ranked keywords each tracker competitor
-// (up to 5) newly ranks for at the tracker's market, not only tracked
-// keywords; for web-mentions, pages DataForSEO's content index first saw
-// naming the brand, off the client's own domains. The sweep is hourly but a
-// purchase is reused from the archive while fresh, so it buys at most once a
-// week per competitor (once a day for mentions); it is capped by the client's
-// monthly budget, and a failed or over-budget read falls back to the free
-// signal. Quote it first with estimate_cost.
+// it — emailRecipients, telegramChatId, apiKey, watchtowerProjectId,
+// hermeticaFrom), or pauses and resumes it, or turns its paidSource on or off.
+// Answers 'this alert is too noisy', 'send this to email instead' or 'mute
+// this for now' (pause the site-unreachable rule when another monitor owns
+// uptime). Pausing keeps the rule's history. paidSource
+// (competitor-new-keywords and web-mentions only; off by default; needs spend
+// permission) also buys the signal from DataForSEO on every sweep: for
+// competitor-new-keywords, Labs ranked keywords each tracker competitor (up to
+// 5) newly ranks for at the tracker's market, not only tracked keywords; for
+// web-mentions, pages DataForSEO's content index first saw naming the brand,
+// off the client's own domains. The sweep is hourly but a purchase is reused
+// from the archive while fresh, so it buys at most once a week per competitor
+// (once a day for mentions); it is capped by the client's monthly budget, and
+// a failed or over-budget read falls back to the free signal. Quote it first
+// with estimate_cost.
 func (c *Client) UpdateAlertRule(ctx context.Context, in UpdateAlertRuleInput) (json.RawMessage, error) {
 	return c.Call(ctx, "update_alert_rule", in)
 }
