@@ -7635,13 +7635,16 @@ type LinkContentPlatformInput struct {
 // host not listed is refused), and adds its sitemap (sitemapUrl, else each
 // Sitemap: line of the host's robots.txt, else /sitemap.xml, kept only when it
 // answers as a sitemap) to the deploy hook's sitemaps, keeping the hook's
-// secret and baseline, so each call reads its new and changed pages and
-// submits them to IndexNow (which accepts them only when the IndexNow key file
-// is also served on that host). get_site_status lists it under coveredHosts
-// and get_next_steps under content_platform. The site crawl does not follow
-// it: a crawl stays on the client's own domain. On the Forumulate side (from
-// its public guides): set the site key from get_web_analytics_setup as the
-// seolyticize field of PUT /orgs/{orgId}/analytics-tags (or a site's or
+// secret and baseline, so each call reads its new and changed pages. They are
+// not sent to IndexNow, which takes a page only under a key file on the page's
+// own host, which only the platform can serve; the hook's answer counts them
+// under notSentToIndexNow with that reason (Forumulate pings for its own blog,
+// changelog and careers spaces with IndexNow on; a docs space has no key).
+// Search engines still read the host's sitemap. get_site_status lists it under
+// coveredHosts and get_next_steps under content_platform. The site crawl does
+// not follow it: a crawl stays on the client's own domain. On the Forumulate
+// side (from its public guides): set the site key from get_web_analytics_setup
+// as the seolyticize field of PUT /orgs/{orgId}/analytics-tags (or a site's or
 // space's), which sends pageviews with no script, gated as first-party
 // measurement by the consent settings (firstPartyAnalytics); robots.txt names
 // the host's sitemap; and publishes call the deploy hook one of three ways, as
