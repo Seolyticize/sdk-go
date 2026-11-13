@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 519
+const ToolCount = 521
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -1188,6 +1188,36 @@ type CompareSitesInput struct {
 // pages on the client's behalf, so it needs project:manage.
 func (c *Client) CompareSites(ctx context.Context, in CompareSitesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "compare_sites", in)
+}
+
+// ConnectAnalyticsSourceInput is the input to connect_analytics_source.
+type ConnectAnalyticsSourceInput struct {
+	ClientID string `json:"clientId"`
+	Provider string `json:"provider"`
+	Project  string `json:"project"`
+	Key      string `json:"key"`
+	AppKey   string `json:"appKey,omitempty"`
+	Host     string `json:"host,omitempty"`
+}
+
+// ConnectAnalyticsSource calls connect_analytics_source: Use PostHog, Lucida,
+// Datadog RUM or Umami as the traffic source. Reads the client's pageviews and
+// custom events from the analytics tool the site already runs, every hour, so
+// the traffic, goal, funnel and revenue reports work without our tag. PostHog:
+// project (the project id) and key (a personal API key with Query Read); host
+// https://eu.posthog.com for EU Cloud or a self-hosted address. Lucida:
+// project (the project id) and key (a project secret or account key with
+// insight:read); host for your own Lucida. Datadog: project (the RUM
+// application id) and key (a personal or service access token with
+// rum_apps_read), or key (an API key) with appKey (an application key); host
+// the site's API host, like https://api.datadoghq.eu. Umami: project (the
+// website id) and key (an API key); host for self-hosted, with /api left off.
+// The last 30 days are imported straight away; tools that only give totals
+// (Plausible, Fathom) use import_analytics_csv. Needs set_up_web_analytics
+// first. Don't also run our tag on the same pages, or visits count twice.
+// Free.
+func (c *Client) ConnectAnalyticsSource(ctx context.Context, in ConnectAnalyticsSourceInput) (json.RawMessage, error) {
+	return c.Call(ctx, "connect_analytics_source", in)
 }
 
 // ConnectExternalEventsInput is the input to connect_external_events.
@@ -7422,6 +7452,20 @@ type ImportAnalyticsCSVInput struct {
 // set up for the client. Free.
 func (c *Client) ImportAnalyticsCSV(ctx context.Context, in ImportAnalyticsCSVInput) (json.RawMessage, error) {
 	return c.Call(ctx, "import_analytics_csv", in)
+}
+
+// ImportAnalyticsNowInput is the input to import_analytics_now.
+type ImportAnalyticsNowInput struct {
+	ClientID string `json:"clientId"`
+}
+
+// ImportAnalyticsNow calls import_analytics_now: Import from the connected
+// analytics tool now. Imports the pageviews and events the connected analytics
+// tool (connect_analytics_source) recorded since the last import; the hourly
+// import does this on its own. Answers 'pull in today's PostHog traffic'.
+// Free.
+func (c *Client) ImportAnalyticsNow(ctx context.Context, in ImportAnalyticsNowInput) (json.RawMessage, error) {
+	return c.Call(ctx, "import_analytics_now", in)
 }
 
 // ImportClientFactsInput is the input to import_client_facts.
