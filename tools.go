@@ -1215,7 +1215,8 @@ type ConnectAnalyticsSourceInput struct {
 // The last 30 days are imported straight away; tools that only give totals
 // (Plausible, Fathom) use import_analytics_csv. Needs set_up_web_analytics
 // first. Don't also run our tag on the same pages, or visits count twice.
-// Free.
+// Answers 'use our PostHog for traffic' or 'we measure with Datadog, not your
+// tag'. Free.
 func (c *Client) ConnectAnalyticsSource(ctx context.Context, in ConnectAnalyticsSourceInput) (json.RawMessage, error) {
 	return c.Call(ctx, "connect_analytics_source", in)
 }
@@ -7682,20 +7683,21 @@ type LinkContentPlatformInput struct {
 // secret and baseline, so each call reads its new and changed pages. They are
 // not sent to IndexNow, which takes a page only under a key file on the page's
 // own host, which only the platform can serve; the hook's answer counts them
-// under notSentToIndexNow with that reason (Forumulate pings for its own blog,
-// changelog and careers spaces with IndexNow on; a docs space has no key).
-// Search engines still read the host's sitemap. get_site_status lists it under
-// coveredHosts and get_next_steps under content_platform. The site crawl does
-// not follow it: a crawl stays on the client's own domain. On the Forumulate
-// side (from its public guides): set the site key from get_web_analytics_setup
-// as the seolyticize field of PUT /orgs/{orgId}/analytics-tags (or a site's or
-// space's), which sends pageviews with no script, gated as first-party
-// measurement by the consent settings (firstPartyAnalytics); robots.txt names
-// the host's sitemap; and publishes call the deploy hook one of three ways, as
-// get_deploy_hook's howToCall.forumulate spells out: (1, recommended) an
-// ordinary signed webhook, POST /orgs/{orgId}/webhooks {url: the hook's url,
-// events: [page.live, publish.completed]}, whose one-time signing secret goes
-// to set_deploy_hook_sender_secret, so no secret is in any URL; (2) Settings →
+// under notSentToIndexNow with that reason (Forumulate pings IndexNow itself
+// for any of its spaces, docs and help included, once publishPings.indexNow is
+// on there). Search engines still read the host's sitemap. get_site_status
+// lists it under coveredHosts and get_next_steps under content_platform. The
+// site crawl does not follow it: a crawl stays on the client's own domain. On
+// the Forumulate side (from its public guides): set the site key from
+// get_web_analytics_setup as the seolyticize field of PUT
+// /orgs/{orgId}/analytics-tags (or a site's or space's), which sends pageviews
+// with no script, gated as first-party measurement by the consent settings
+// (firstPartyAnalytics); robots.txt names the host's sitemap; and publishes
+// call the deploy hook one of three ways, as get_deploy_hook's
+// howToCall.forumulate spells out: (1, recommended) an ordinary signed
+// webhook, POST /orgs/{orgId}/webhooks {url: the hook's url, events:
+// [page.live, publish.completed]}, whose one-time signing secret goes to
+// set_deploy_hook_sender_secret, so no secret is in any URL; (2) Settings →
 // Analytics, PUT /orgs/{orgId}/seolyticize/deploy-hook {url: webhookUrl}, the
 // same webhook with a secret it never answers; (3) a webhook of kind
 // deploy_hook (a manifest's webhooks entry {kind: deploy_hook, url:
@@ -7817,10 +7819,16 @@ type ListCollectKeysInput struct {
 // createdAt, revokedAt, lastUsedAt (to about a minute) and note (why createdAt
 // or lastUsedAt is null: dates and use are kept from 2026-11-11, and an older
 // key is dated from its issue_server_collect_key call when one is on record).
-// A revoked key is refused, but each refused use is still recorded, so a
-// rotation is confirmed when the active key's lastUsedAt moves and the revoked
-// one's stops. Answers 'is the old collect key still in use somewhere' and
-// 'did the new key reach production'. Free.
+// Use is a POST to /api/collect with Authorization: Bearer <key>
+// (createCollector or expressCollector from @seolyticize/next/server, the
+// Python or PHP Collector, or your own server); a.js, the browser components
+// and the REST API never send it. A revoked key is refused, but each refused
+// use is still recorded, so a rotation is confirmed when the active key's
+// lastUsedAt moves and the revoked one's stops. unknownKey ({id,
+// lastRefusedAt}, or null) is the last call refused for a key that was never
+// this site's: compare its id with the SHA-256 of the key your server holds.
+// Answers 'is the old collect key still in use somewhere' and 'did the new key
+// reach production'. Free.
 func (c *Client) ListCollectKeys(ctx context.Context, in ListCollectKeysInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_collect_keys", in)
 }
@@ -10024,7 +10032,9 @@ type SetCrawlSettingsInput struct {
 // ('Article.datePublished') or meta (a name or property) — see
 // get_extraction_results. render runs JavaScript: off, shells (pages that look
 // unrendered) or all, capped at renderMaxPages. Answers 'crawl this site this
-// way'. Free.
+// way'. dryRun: true shows the current settings and, when includePatterns or
+// excludePatterns are given, tries each against the live sitemap:
+// patternCheck.matchNothing lists those that match no page. Free.
 func (c *Client) SetCrawlSettings(ctx context.Context, in SetCrawlSettingsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "set_crawl_settings", in)
 }
