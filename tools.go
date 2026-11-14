@@ -7883,6 +7883,7 @@ type ListCrawlIssuesInput struct {
 	ClientID      string `json:"clientId"`
 	CrawlID       string `json:"crawlId,omitempty"`
 	IndexableOnly *bool  `json:"indexableOnly,omitempty"`
+	Severity      string `json:"severity,omitempty"`
 }
 
 // ListCrawlIssues calls list_crawl_issues: List site audit issues. Technical
@@ -7890,19 +7891,21 @@ type ListCrawlIssuesInput struct {
 // many pages it affects, and howToFix — concrete steps to fix it and check the
 // fix. Lists what to fix; list_issue_pages with a ruleId gives the pages
 // themselves, each with what was found on it. Use crawlId 'latest' for the
-// newest completed crawl. indexableOnly (default true) leaves out findings on
-// pages search engines will not index as themselves — noindexed, not answering
-// 200, or canonicalised elsewhere — except the findings that explain why; pass
-// false to see everything. fixes groups the same findings by URL template (the
-// client's analytics pathTemplates, then paths that differ in one segment
-// under a common prefix, /templates/*): one row per rule and template with its
-// pages, an example page and sharedMessage (the message most of its pages
-// share: the template's one cause), the rule's pages that fit no template in
-// one row of their own; issuesFound counts distinct fixes (one per rule and
-// template, plus one per page that fits no template) and findingPages the
-// pages behind them, accepted findings left out of both. A template row over
-// 50 pages carries acceptIssue, the accept_issue call (dryRun) for when those
-// pages are that way on purpose.
+// newest completed crawl; severity (critical, warning or notice) keeps only
+// that severity's issues and fixes rows, issuesFound and findingPages still
+// counting the whole crawl. indexableOnly (default true) leaves out findings
+// on pages search engines will not index as themselves — noindexed, not
+// answering 200, or canonicalised elsewhere — except the findings that explain
+// why; pass false to see everything. fixes groups the same findings by URL
+// template (the client's analytics pathTemplates, then paths that differ in
+// one segment under a common prefix, /templates/*): one row per rule and
+// template with its pages, an example page and sharedMessage (the message most
+// of its pages share: the template's one cause), the rule's pages that fit no
+// template in one row of their own; issuesFound counts distinct fixes (one per
+// rule and template, plus one per page that fits no template) and findingPages
+// the pages behind them, accepted findings left out of both. A template row
+// over 50 pages carries acceptIssue, the accept_issue call (dryRun) for when
+// those pages are that way on purpose.
 func (c *Client) ListCrawlIssues(ctx context.Context, in ListCrawlIssuesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_crawl_issues", in)
 }
@@ -8227,7 +8230,10 @@ type ListRecentAlertsInput struct {
 
 // ListRecentAlerts calls list_recent_alerts: List recent alerts. Alerts raised
 // for a client since a given time, newest first. Lists what has fired, for
-// anything watching — a chat channel, an automation, a status board.
+// anything watching — a chat channel, an automation, a status board. links are
+// pages to open (a crawl alert links the client's site audit); deliveryNote
+// says where the alert was sent or, with delivered false, why not and the
+// update_alert_rule call that fixes it (null for alerts before 2026-11-14).
 func (c *Client) ListRecentAlerts(ctx context.Context, in ListRecentAlertsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_recent_alerts", in)
 }
