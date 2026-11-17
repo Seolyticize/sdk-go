@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 521
+const ToolCount = 523
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -1414,7 +1414,7 @@ type CreateAlertRuleInput struct {
 	Channel             string   `json:"channel,omitempty"`
 	EmailRecipients     []string `json:"emailRecipients,omitempty"`
 	TelegramChatID      string   `json:"telegramChatId,omitempty"`
-	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower API key for the project; hermetica: the client's Hermetica secret key (hm_sk_…, with messages:send). Stored sealed and never shown agai
+	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower service-account key (wta_…) holding only events:write, the narrowest that can post events (an ingest wti_ key is refused there with 403
 	WatchtowerProjectID string   `json:"watchtowerProjectId,omitempty"` // watchtower: the project id, as in /v1/projects/{prj}.
 	HermeticaFrom       string   `json:"hermeticaFrom,omitempty"`       // hermetica: the sender address, verified in the Hermetica workspace.
 	PaidSource          *bool    `json:"paidSource,omitempty"`
@@ -1438,27 +1438,27 @@ type CreateAlertRuleInput struct {
 // (webhookUrl, Slack's format; the default), webhook (webhookUrl, plain JSON),
 // discord (webhookUrl, the channel's Discord webhook as Discord shows it),
 // email (emailRecipients, up to ten) telegram (telegramChatId, with the
-// agency's bot from Settings), watchtower (apiKey and watchtowerProjectId:
-// posts an event to that Watchtower project with POST
-// /v1/projects/{prj}/events, alert_type error, warning or info by severity,
-// source seolyticize, aggregation_key the rule id, tags kind:<kind> and
-// client:<clientId>, and the detail and links in its text) or hermetica
-// (apiKey, hermeticaFrom and emailRecipients: the alert email sent through the
-// client's own Hermetica account with POST /v1/transactional/send). The apiKey
-// is stored sealed and never returned. Webhooks must be https and public. With
-// no channel and no destination, the alert goes to the agency owner's email
-// and deliveryNote says so; a channel named without its field is refused as
-// no_delivery_target. paidSource (competitor-new-keywords and web-mentions
-// only; off by default; needs spend permission) also buys the signal from
-// DataForSEO on every sweep: for competitor-new-keywords, Labs ranked keywords
-// each tracker competitor (up to 5) newly ranks for at the tracker's market,
-// not only tracked keywords; for web-mentions, pages DataForSEO's content
-// index first saw naming the brand, off the client's own domains. The sweep is
-// hourly but a purchase is reused from the archive while fresh, so it buys at
-// most once a week per competitor (once a day for mentions); it is capped by
-// the client's monthly budget, and a failed or over-budget read falls back to
-// the free signal. Quote it first with estimate_cost. Answers 'tell me when
-// rankings drop'.
+// agency's bot from Settings), watchtower (apiKey, a service-account wta_ key
+// with events:write, and watchtowerProjectId: posts an event to that
+// Watchtower project with POST /v1/projects/{prj}/events, alert_type error,
+// warning or info by severity, source seolyticize, aggregation_key the rule
+// id, tags kind:<kind> and client:<clientId>, and the detail and links in its
+// text) or hermetica (apiKey, hermeticaFrom and emailRecipients: the alert
+// email sent through the client's own Hermetica account with POST
+// /v1/transactional/send). The apiKey is stored sealed and never returned.
+// Webhooks must be https and public. With no channel and no destination, the
+// alert goes to the agency owner's email and deliveryNote says so; a channel
+// named without its field is refused as no_delivery_target. paidSource
+// (competitor-new-keywords and web-mentions only; off by default; needs spend
+// permission) also buys the signal from DataForSEO on every sweep: for
+// competitor-new-keywords, Labs ranked keywords each tracker competitor (up to
+// 5) newly ranks for at the tracker's market, not only tracked keywords; for
+// web-mentions, pages DataForSEO's content index first saw naming the brand,
+// off the client's own domains. The sweep is hourly but a purchase is reused
+// from the archive while fresh, so it buys at most once a week per competitor
+// (once a day for mentions); it is capped by the client's monthly budget, and
+// a failed or over-budget read falls back to the free signal. Quote it first
+// with estimate_cost. Answers 'tell me when rankings drop'.
 func (c *Client) CreateAlertRule(ctx context.Context, in CreateAlertRuleInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_alert_rule", in)
 }
@@ -2132,6 +2132,27 @@ type DisconnectIntegrationInput struct {
 // 'disconnect their Stripe'. Safe to repeat.
 func (c *Client) DisconnectIntegration(ctx context.Context, in DisconnectIntegrationInput) (json.RawMessage, error) {
 	return c.Call(ctx, "disconnect_integration", in)
+}
+
+// DismissNextStepInput is the input to dismiss_next_step.
+type DismissNextStepInput struct {
+	ClientID string `json:"clientId"`
+	ID       string `json:"id"`
+	Reason   string `json:"reason,omitempty"`
+	Restore  *bool  `json:"restore,omitempty"`
+}
+
+// DismissNextStep calls dismiss_next_step: Set a next step aside. Answers 'we
+// have no GA4, stop listing it'. Marks one get_next_steps item as not
+// applicable for this client, with the reason (google_analytics: 'the site has
+// no GA4'; vendor_balance or search_data: 'no paid SEO data, by the owner's
+// choice'). The item stays in items with its live status and dismissed
+// {reason, at}, but leaves missing and blocked, so health no longer turns
+// degraded on it and a real gap is not lost among chosen ones. restore: true
+// brings it back. The required items (site, indexnow, search_console,
+// web_analytics, crawl) cannot be set aside. Safe to repeat. Free.
+func (c *Client) DismissNextStep(ctx context.Context, in DismissNextStepInput) (json.RawMessage, error) {
+	return c.Call(ctx, "dismiss_next_step", in)
 }
 
 // DraftAgentFilesInput is the input to draft_agent_files.
@@ -8515,6 +8536,7 @@ type OnboardSiteInput struct {
 	Verification     string   `json:"verification,omitempty"`     // file (a page at the site root, the default), meta (a tag in the <head>) or dns (a TXT record, which also covers every subdomain and protocol).
 	HealthKey        *bool    `json:"healthKey,omitempty"`        // Also make a read-only key pinned to this client that can spend nothing, for seolyticize doctor. It is shown once in healthKey.key; a later call keeps it and ret
 	TrackerFrequency string   `json:"trackerFrequency,omitempty"` // How often the client's rank tracker runs once it has keywords: weekly is the default for a new tracker. Applied to an existing client's trackers too. update_ran
+	DryRun           *bool    `json:"dryRun,omitempty"`           // True to write nothing and get the plan: what it would create, whether the plan has room for the client (planAllows, planRefusal), what the site must serve and t
 }
 
 // OnboardSite calls onboard_site: Onboard a site in one call. Answers 'set
@@ -8898,6 +8920,24 @@ type RecordOrdersInput struct {
 // the same batch. Answers 'send last night's orders in one request'. Free.
 func (c *Client) RecordOrders(ctx context.Context, in RecordOrdersInput) (json.RawMessage, error) {
 	return c.Call(ctx, "record_orders", in)
+}
+
+// RedeliverAlertInput is the input to redeliver_alert.
+type RedeliverAlertInput struct {
+	ClientID string `json:"clientId"`
+	AlertID  string `json:"alertId"`
+}
+
+// RedeliverAlert calls redeliver_alert: Send an alert again. Sends one alert
+// that already fired (alertId is its id from list_recent_alerts) down its
+// rule's channel as it is set now, and records the outcome on the alert:
+// delivered and deliveryNote. Answers 'the site-down alert never reached us,
+// send it again' after fixing where the rule delivers. A send that fails for a
+// passing reason (a 5xx, 429 or timeout) is already tried again on its own,
+// with backoff, for 3 hours after firing; deliveryNote says when. Sends even
+// an alert that was delivered, so the channel gets it twice. Free.
+func (c *Client) RedeliverAlert(ctx context.Context, in RedeliverAlertInput) (json.RawMessage, error) {
+	return c.Call(ctx, "redeliver_alert", in)
 }
 
 // RefreshDomainDataInput is the input to refresh_domain_data.
@@ -9979,7 +10019,7 @@ func (c *Client) SetCrawlAuth(ctx context.Context, in SetCrawlAuthInput) (json.R
 type SetCrawlScheduleInput struct {
 	ClientID string `json:"clientId"`
 	Cadence  string `json:"cadence"`
-	Day      *int64 `json:"day,omitempty"`
+	Day      *int64 `json:"day,omitempty"` // Weekly: 0 Sunday to 6 Saturday, or the day's name. Monthly: 1–28.
 	Hour     *int64 `json:"hour,omitempty"`
 }
 
@@ -10668,7 +10708,7 @@ type UpdateAlertRuleInput struct {
 	Channel             string   `json:"channel,omitempty"`
 	EmailRecipients     []string `json:"emailRecipients,omitempty"`
 	TelegramChatID      string   `json:"telegramChatId,omitempty"`
-	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower API key for the project; hermetica: the client's Hermetica secret key (hm_sk_…, with messages:send). Stored sealed and never shown agai
+	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower service-account key (wta_…) holding only events:write, the narrowest that can post events (an ingest wti_ key is refused there with 403
 	WatchtowerProjectID string   `json:"watchtowerProjectId,omitempty"` // watchtower: the project id, as in /v1/projects/{prj}.
 	HermeticaFrom       string   `json:"hermeticaFrom,omitempty"`       // hermetica: the sender address, verified in the Hermetica workspace.
 	Paused              *bool    `json:"paused,omitempty"`
@@ -11039,6 +11079,7 @@ func (c *Client) VerifyIndexnowKey(ctx context.Context, in VerifyIndexnowKeyInpu
 // VerifySiteInput is the input to verify_site.
 type VerifySiteInput struct {
 	ClientID string `json:"clientId"`
+	Recheck  *bool  `json:"recheck,omitempty"` // Fetch the IndexNow key file again even when it verified before. Every fetch asks past caches (cache-control: no-cache and a unique query), and a failure names t
 }
 
 // VerifySite calls verify_site: Verify a deployed site and finish onboarding.
@@ -11117,8 +11158,10 @@ type WhoamiInput struct {
 // agency, whether it is an API key or a person, the role, every permission
 // that role holds, the clients it can reach, and vendorBalanceUsable (false
 // when the agency's DataForSEO balance is empty and paid calls fail, null with
-// no key of its own or when it cannot be read). Answers 'what can this key
-// do'. Call it first when unsure whether a task is allowed. Free.
+// no key of its own or when it cannot be read), the plan in force (planLapsed
+// says when a bought plan's subscription has lapsed to trial limits;
+// get_billing has usage), and reach: the routes a key calls. Answers 'what can
+// this key do'. Call it first when unsure whether a task is allowed. Free.
 func (c *Client) Whoami(ctx context.Context, in WhoamiInput) (json.RawMessage, error) {
 	return c.Call(ctx, "whoami", in)
 }
