@@ -10248,12 +10248,13 @@ type SetUpWebAnalyticsInput struct {
 // a client's cookieless web analytics, or changes which hostnames may report
 // to it, and returns the same shape as get_web_analytics_setup: the one-line
 // tracking snippet to add to every page, the allowed hostnames and
-// lastEventAt. Answers 'install tracking on this site'. Without hostnames it
-// allows the client's own domain and its www form; with hostnames, those
-// replace the list (up to 20; a visit from any other hostname is ignored, so
-// add staging or extra domains here). Safe to repeat: an existing setup keeps
-// its snippet. configured is false when the client has no site domain to
-// default to and no hostnames were given. Free.
+// lastEventAt, plus readiness: the site's get_next_steps summary (ready,
+// health, missing and blocked item ids). Answers 'install tracking on this
+// site'. Without hostnames it allows the client's own domain and its www form;
+// with hostnames, those replace the list (up to 20; a visit from any other
+// hostname is ignored, so add staging or extra domains here). Safe to repeat:
+// an existing setup keeps its snippet. configured is false when the client has
+// no site domain to default to and no hostnames were given. Free.
 func (c *Client) SetUpWebAnalytics(ctx context.Context, in SetUpWebAnalyticsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "set_up_web_analytics", in)
 }
