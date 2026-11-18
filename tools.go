@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 523
+const ToolCount = 534
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -43,6 +43,7 @@ var readOnlyTools = map[string]bool{
 	"generate_hreflang":               true,
 	"generate_llms_txt":               true,
 	"generate_schema":                 true,
+	"get_agent_access_matrix":         true,
 	"get_agent_readiness":             true,
 	"get_ai_agent_visits":             true,
 	"get_ai_answer_share":             true,
@@ -176,12 +177,14 @@ var readOnlyTools = map[string]bool{
 	"get_serp_intent_shifts":          true,
 	"get_serp_newcomers":              true,
 	"get_serp_volatility":             true,
+	"get_server_snippet":              true,
 	"get_share_of_search":             true,
 	"get_share_of_voice":              true,
 	"get_shopping_keyword_gap":        true,
 	"get_shopping_serp":               true,
 	"get_site_conventions":            true,
 	"get_site_status":                 true,
+	"get_template_report":             true,
 	"get_top_searches":                true,
 	"get_topical_authority":           true,
 	"get_translation_gap":             true,
@@ -195,6 +198,7 @@ var readOnlyTools = map[string]bool{
 	"get_web_analytics_realtime":      true,
 	"get_web_analytics_setup":         true,
 	"get_web_analytics_summary":       true,
+	"get_webhook_schemas":             true,
 	"get_written_report":              true,
 	"get_yandex_diagnostics":          true,
 	"get_yandex_external_links":       true,
@@ -209,6 +213,7 @@ var readOnlyTools = map[string]bool{
 	"list_annotations":                true,
 	"list_api_activity":               true,
 	"list_api_keys":                   true,
+	"list_audit_events":               true,
 	"list_client_facts":               true,
 	"list_clients":                    true,
 	"list_collect_keys":               true,
@@ -253,6 +258,7 @@ var readOnlyTools = map[string]bool{
 	"list_webhook_deliveries":         true,
 	"list_webhooks":                   true,
 	"list_written_reports":            true,
+	"merge_robots":                    true,
 	"page_vitals":                     true,
 	"plan_redirect_map":               true,
 	"preview_weekly_digest":           true,
@@ -335,7 +341,9 @@ type AddBingSiteInput struct {
 // msvalidate.01 tag) and dns (a CNAME to verify.bing.com). Answers 'add this
 // site to Bing' and 'how do we verify the site in Bing'. Deploy one proof,
 // then call verify_bing_site. Safe to repeat: an added site is returned as it
-// is. Free.
+// is. added is true only when this call added the site; existed is true when
+// it was already in the account (onboard_site adds it when Bing is connected).
+// Free.
 func (c *Client) AddBingSite(ctx context.Context, in AddBingSiteInput) (json.RawMessage, error) {
 	return c.Call(ctx, "add_bing_site", in)
 }
@@ -373,9 +381,13 @@ type AddDefaultAlertsInput struct {
 // (site-unreachable), non-branded Search Console clicks fall 30% or more week
 // on week (traffic-drop 30), a crawl finds critical issues
 // (new-critical-issues 1), and a tracked keyword drops 5 or more places
-// (rank-drop 5). Each goes to the agency owner's email until changed with
-// update_alert_rule. A kind the client already has a rule for is kept as it
-// is, so it is safe to repeat. channel with webhookUrl (slack, webhook,
+// (rank-drop 5). Each goes to the client's linked Watchtower project
+// (link_watchtower), else the agency owner's email, until changed with
+// update_alert_rule. On a deployment with no email provider, rules that would
+// go to the owner's email are made paused (pausedUntilDelivery) with next
+// naming the call that gives them a destination; passing a destination later
+// moves and resumes them. A kind the client already has a rule for is kept as
+// it is, so it is safe to repeat. channel with webhookUrl (slack, webhook,
 // discord), emailRecipients (email) or telegramChatId (telegram) sends them
 // there instead, and moves default rules still going only to the owner's email
 // (moved). uptimeMonitoredElsewhere: true leaves site-unreachable out (and
@@ -528,9 +540,10 @@ func (c *Client) AnalyseServerLog(ctx context.Context, in AnalyseServerLogInput)
 type ApplyManifestInput struct {
 	Domain           string           `json:"domain"`
 	Name             string           `json:"name,omitempty"`
-	Framework        string           `json:"framework,omitempty"`
+	Framework        string           `json:"framework,omitempty"` // As onboard_site's framework: other for a client-rendered single-page app (Vite, Create React App, React Router), html for HTML that already holds the content.
 	Verification     string           `json:"verification,omitempty"`
 	TrackerFrequency string           `json:"trackerFrequency,omitempty"`
+	FirstCrawl       string           `json:"firstCrawl,omitempty"` // When the site's first crawl runs. afterVerify (the default for a new client): once verify_site is called, after the files are deployed, so the crawl sees the de
 	MonthlyBudgetUsd *float64         `json:"monthlyBudgetUsd,omitempty"`
 	BudgetAlertAt    *float64         `json:"budgetAlertAt,omitempty"` // The share of the budget that alerts (0.8 = 80%). Left as it is when omitted.
 	DomainSweep      *bool            `json:"domainSweep,omitempty"`
@@ -540,6 +553,7 @@ type ApplyManifestInput struct {
 	Analytics        map[string]any   `json:"analytics,omitempty"` // set_up_web_analytics arguments; each list replaces the one there.
 	Crawl            map[string]any   `json:"crawl,omitempty"`     // set_crawl_settings arguments without clientId, such as {render: "shells", stripParams: ["ref"]}; checked by that tool.
 	Alerts           map[string]any   `json:"alerts,omitempty"`    // add_default_alerts arguments: the default alerts, sent here.
+	Platforms        map[string]any   `json:"platforms,omitempty"` // Sibling platforms serving the client's pages. forumulate: link_content_platform for that host (its analytics hostname and its sitemap on the deploy hook); kept
 	Facts            []map[string]any `json:"facts,omitempty"`
 	Goals            []map[string]any `json:"goals,omitempty"`
 	Funnels          []map[string]any `json:"funnels,omitempty"`
@@ -552,15 +566,21 @@ type ApplyManifestInput struct {
 // site (domain, framework, verification, tracker cadence, budget and its alert
 // share, domain sweep, deploy hook, analytics paths and partners, crawl
 // settings, default alerts and where they go, brief and brand terms, facts,
-// goals, funnels) and brings the client to it through the existing tools, each
-// with its own permission and checks. Each part is compared with what is there
-// first: a step is kept when it would write nothing, ran when it changed
-// something, would_run on a dry run. Fields the manifest leaves out are left
-// as they are. files (the IndexNow key and Google verification file, which are
-// public) come back on every real run. env lists each environment variable to
-// set: build (read at build time), runtime and secrets, with public ids as
-// values and secrets only as a placeholder naming the tool that issues them. A
-// new deploy hook's secret is in its step's result only, once. Free.
+// goals, funnels, sibling platforms such as a Forumulate host) and brings the
+// client to it through the existing tools, each with its own permission and
+// checks. Each part is compared with what is there first: a step is kept when
+// it would write nothing, ran when it changed something, would_run on a dry
+// run. patch is an RFC 6902 JSON Patch of what the run changed, or on a dry
+// run would change, against the live config, each path starting with its
+// section (/crawl/render, /budget/monthlyUsd, /goals/Signup); an empty patch
+// on a dry run means the live config matches the manifest, so CI can fail the
+// build on drift. Fields the manifest leaves out are left as they are. files
+// (the IndexNow key and Google verification file, which are public) come back
+// on every real run. env lists each environment variable to set: build (read
+// at build time), runtime and secrets, with public ids as values and secrets
+// only as a placeholder naming the tool that issues them. A new deploy hook's
+// secret is in its step's result only, once. A deployer key may run it with
+// dryRun only. Free.
 func (c *Client) ApplyManifest(ctx context.Context, in ApplyManifestInput) (json.RawMessage, error) {
 	return c.Call(ctx, "apply_manifest", in)
 }
@@ -1415,6 +1435,7 @@ type CreateAlertRuleInput struct {
 	EmailRecipients     []string `json:"emailRecipients,omitempty"`
 	TelegramChatID      string   `json:"telegramChatId,omitempty"`
 	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower service-account key (wta_…) holding only events:write, the narrowest that can post events (an ingest wti_ key is refused there with 403
+	BotToken            string   `json:"botToken,omitempty"`            // telegram: the customer's own bot token from @BotFather (123456:ABC…), so alerts post as their bot in a chat it already belongs to, without the agency's bot. Sto
 	WatchtowerProjectID string   `json:"watchtowerProjectId,omitempty"` // watchtower: the project id, as in /v1/projects/{prj}.
 	HermeticaFrom       string   `json:"hermeticaFrom,omitempty"`       // hermetica: the sender address, verified in the Hermetica workspace.
 	PaidSource          *bool    `json:"paidSource,omitempty"`
@@ -1433,32 +1454,39 @@ type CreateAlertRuleInput struct {
 // competitor started ranking for; web-mentions new pages our crawl found
 // naming the brand; link-velocity referring domains gained or lost in one day,
 // far above that domain's own baseline, for the client or a tracked
-// competitor. The watch kinds look back to their last firing (a week at most)
-// and stay silent until there is something to compare. Channels: slack
-// (webhookUrl, Slack's format; the default), webhook (webhookUrl, plain JSON),
-// discord (webhookUrl, the channel's Discord webhook as Discord shows it),
-// email (emailRecipients, up to ten) telegram (telegramChatId, with the
-// agency's bot from Settings), watchtower (apiKey, a service-account wta_ key
-// with events:write, and watchtowerProjectId: posts an event to that
-// Watchtower project with POST /v1/projects/{prj}/events, alert_type error,
-// warning or info by severity, source seolyticize, aggregation_key the rule
-// id, tags kind:<kind> and client:<clientId>, and the detail and links in its
-// text) or hermetica (apiKey, hermeticaFrom and emailRecipients: the alert
-// email sent through the client's own Hermetica account with POST
-// /v1/transactional/send). The apiKey is stored sealed and never returned.
-// Webhooks must be https and public. With no channel and no destination, the
-// alert goes to the agency owner's email and deliveryNote says so; a channel
-// named without its field is refused as no_delivery_target. paidSource
-// (competitor-new-keywords and web-mentions only; off by default; needs spend
-// permission) also buys the signal from DataForSEO on every sweep: for
-// competitor-new-keywords, Labs ranked keywords each tracker competitor (up to
-// 5) newly ranks for at the tracker's market, not only tracked keywords; for
-// web-mentions, pages DataForSEO's content index first saw naming the brand,
-// off the client's own domains. The sweep is hourly but a purchase is reused
-// from the archive while fresh, so it buys at most once a week per competitor
-// (once a day for mentions); it is capped by the client's monthly budget, and
-// a failed or over-budget read falls back to the free signal. Quote it first
-// with estimate_cost. Answers 'tell me when rankings drop'.
+// competitor; web-traffic-drop percent of visits lost in the site's own web
+// analytics, the last 24 hours against the same hours of the same weekday over
+// the previous four weeks, silent below 20 visits a day on average (a broken
+// tag after a deploy pages within the hour). The watch kinds look back to
+// their last firing (a week at most) and stay silent until there is something
+// to compare. Channels: slack (webhookUrl, Slack's format; the default),
+// webhook (webhookUrl, plain JSON), discord (webhookUrl, the channel's Discord
+// webhook as Discord shows it), email (emailRecipients, up to ten) telegram
+// (telegramChatId, posted by botToken — the customer's own bot, stored sealed
+// — or else the agency's bot from Settings), watchtower (apiKey, a
+// service-account wta_ key with events:write, and watchtowerProjectId: posts
+// an event to that Watchtower project with POST /v1/projects/{prj}/events,
+// alert_type error, warning or info by severity, source seolyticize,
+// aggregation_key the rule id, tags kind:<kind> and client:<clientId>, and the
+// detail and links in its text) or hermetica (apiKey, hermeticaFrom and
+// emailRecipients: the alert email sent through the client's own Hermetica
+// account with POST /v1/transactional/send). The apiKey is stored sealed and
+// never returned. Webhooks must be https and public. With no channel and no
+// destination, the alert goes to the client's linked Watchtower project
+// (link_watchtower), else the agency owner's email, and deliveryNote says so;
+// a deployment with no email provider refuses it as no_delivery_target
+// instead; a channel named without its field is refused as no_delivery_target.
+// paidSource (competitor-new-keywords and web-mentions only; off by default;
+// needs spend permission) also buys the signal from DataForSEO on every sweep:
+// for competitor-new-keywords, Labs ranked keywords each tracker competitor
+// (up to 5) newly ranks for at the tracker's market, not only tracked
+// keywords; for web-mentions, pages DataForSEO's content index first saw
+// naming the brand, off the client's own domains. The sweep is hourly but a
+// purchase is reused from the archive while fresh, so it buys at most once a
+// week per competitor (once a day for mentions); it is capped by the client's
+// monthly budget, and a failed or over-budget read falls back to the free
+// signal. Quote it first with estimate_cost. Answers 'tell me when rankings
+// drop'.
 func (c *Client) CreateAlertRule(ctx context.Context, in CreateAlertRuleInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_alert_rule", in)
 }
@@ -1471,19 +1499,26 @@ type CreateAPIKeyInput struct {
 	ExpiresInDays     *int64   `json:"expiresInDays,omitempty"`
 	MaxCostUsdPerCall *float64 `json:"maxCostUsdPerCall,omitempty"` // The most any one call with this key may spend, in USD. Calls asking for more are capped to it.
 	Mode              string   `json:"mode,omitempty"`              // test mints a sandbox key: it acts in the agency's sandbox, with sample clients and DataForSEO's documented answers at $0, no model calls, and no reach into live
+	AllowedCidrs      []string `json:"allowedCidrs,omitempty"`      // IP addresses or CIDR ranges ("203.0.113.0/24", "2001:db8::/32") the key may be used from; a call from anywhere else is refused as an invalid key. Leave out for
 }
 
 // CreateAPIKey calls create_api_key: Create an API key. Mints an API key,
-// agency-wide or pinned to one client, with a role: client_viewer (read-only),
-// analyst, manager, site_admin or admin. Answers 'give this integration its
+// agency-wide or pinned to one client, with a role: client_viewer (read-only,
+// the reader role), analyst, manager, site_admin, deployer or admin. deployer
+// is for a CI pipeline and needs a clientId: it reads the client, runs
+// verify_site and apply_manifest with dryRun (the --diff check), and can
+// change no setting, alert channel or goal. Answers 'give this integration its
 // own key'. For an agent that runs one site, pin it to that client with
 // site_admin: full control of that client — connecting consoles, crawls,
 // onboarding — and none of the agency's settings, team, keys or billing; the
 // key cannot even see other clients. A client-pinned key is at most
 // site_admin, and site_admin needs a clientId. expiresInDays makes it stop
 // working on its own; maxCostUsdPerCall caps what any one call with it may
-// spend. The key is in the response once and can never be shown again. A key
-// cannot be given more access than the caller has.
+// spend; allowedCidrs limits where it may be used from. For handing a site its
+// key, an invite code (create_invite_code, claimed at /api/v1/claim) that
+// expires is safer than pasting a key into a guide or chat. The key is in the
+// response once and can never be shown again. A key cannot be given more
+// access than the caller has.
 func (c *Client) CreateAPIKey(ctx context.Context, in CreateAPIKeyInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_api_key", in)
 }
@@ -1588,16 +1623,17 @@ type CreateDeployHookInput struct {
 // (neither is secret), secret (sent as Authorization: Bearer or used to sign;
 // shown only here; the hook URL alone does not authenticate), env (the
 // SEOLYTICIZE_DEPLOY_HOOK_ID and SEOLYTICIZE_DEPLOY_HOOK_SECRET lines for the
-// pipeline's env file, which seolyticize-notify-deploy reads), webhookUrl (the
-// secret in the path, only for senders that cannot set a header or sign, such
-// as Netlify, Vercel, Cloudflare Pages and Forumulate's deploy_hook kind;
-// treat that whole URL as a secret, since tools print URLs; it works for as
-// long as the hook does, by design, and pathUrl: false leaves it out of the
-// answer) and howToCall for each platform. A client that already has a hook is
-// refused with hook_exists and nothing changes; rotate_deploy_hook replaces
-// the secret. With ifMissing: true an existing hook is left alone and returned
-// as {created: false} without a secret, so a provisioning script can run it on
-// every deploy safely. Free.
+// pipeline's env file, which seolyticize-notify-deploy reads, with <secret>
+// where the secret goes: a secret is never repeated inside free text),
+// webhookUrl (the secret in the path, only for senders that cannot set a
+// header or sign, such as Netlify, Vercel, Cloudflare Pages and Forumulate's
+// deploy_hook kind; treat that whole URL as a secret, since tools print URLs;
+// it works for as long as the hook does, by design, and pathUrl: false leaves
+// it out of the answer) and howToCall for each platform. A client that already
+// has a hook is refused with hook_exists and nothing changes;
+// rotate_deploy_hook replaces the secret. With ifMissing: true an existing
+// hook is left alone and returned as {created: false} without a secret, so a
+// provisioning script can run it on every deploy safely. Free.
 func (c *Client) CreateDeployHook(ctx context.Context, in CreateDeployHookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_deploy_hook", in)
 }
@@ -1637,9 +1673,11 @@ type CreateGoalInput struct {
 // the cookieless analytics: reaching a page (kind pageview, match a path such
 // as /thanks or /signup/*) or sending a custom event (kind event, match its
 // name). Optionally worth a fixed value in minor units (2500 = 25.00); without
-// one, an event's own 'value' property is summed. Counts every visit since the
-// tag went in, not only from now. Answers 'count sign-ups as reaching
-// /welcome'. Free.
+// one, an event's own p.value is summed as sent and read in major units (send
+// 25 for 25.00, not 2500; one currency per site, nothing converted). For
+// revenue with a currency, orderId deduplication and refunds, use
+// record_order. Counts every visit since the tag went in, not only from now.
+// Answers 'count sign-ups as reaching /welcome'. Free.
 func (c *Client) CreateGoal(ctx context.Context, in CreateGoalInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_goal", in)
 }
@@ -1892,6 +1930,27 @@ func (c *Client) CreateTasksFromAudit(ctx context.Context, in CreateTasksFromAud
 	return c.Call(ctx, "create_tasks_from_audit", in)
 }
 
+// CreateTestTokenInput is the input to create_test_token.
+type CreateTestTokenInput struct {
+	ClientID   string `json:"clientId"`
+	TtlMinutes *int64 `json:"ttlMinutes,omitempty"`
+}
+
+// CreateTestToken calls create_test_token: Test token for a CI smoke test of
+// the tag. A short-lived token (default 60 minutes, up to 1,440) so a
+// post-deploy headless test can prove the tag works, which an automated
+// browser otherwise never can: put it on the tag as data-test="<token>" (a.js
+// then sends even under navigator.webdriver), or send it to /api/collect as
+// field t or header X-Seolyticize-Test. An event carrying it is answered 202
+// {test: "recorded"}, is never stored as a visit or counted in any report, and
+// stamps the site's testEventAt; verify_site's web_analytics item is done for
+// 24 hours after one. Consent, Do Not Track and GPC still apply in the
+// browser. An expired token, or one for another client, answers 400. Answers
+// 'how do I test the tag in CI'. Free.
+func (c *Client) CreateTestToken(ctx context.Context, in CreateTestTokenInput) (json.RawMessage, error) {
+	return c.Call(ctx, "create_test_token", in)
+}
+
 // CreateWebhookInput is the input to create_webhook.
 type CreateWebhookInput struct {
 	ClientID string   `json:"clientId,omitempty"`
@@ -1902,15 +1961,22 @@ type CreateWebhookInput struct {
 // CreateWebhook calls create_webhook: Subscribe a URL to events. Sends events
 // to an https URL as they happen, signed: each POST carries
 // Seolyticize-Signature: t=<unix>,v1=<hex HMAC-SHA256 of "<t>.<body>" with the
-// secret>, plus Seolyticize-Event and Seolyticize-Delivery headers. Retried
-// with backoff (1 min to a day) until a 2xx; replay_webhooks sends missed ones
-// again. Events: crawl.completed, gsc.synced, rank.moved, backlink.new,
-// backlink.lost, issue.new_critical, ai.citation.gained, ai.citation.lost,
-// competitor.page.new, budget.threshold, alert.fired, vendor.balance_low,
-// vendor.balance_empty. vendor.balance_low and vendor.balance_empty fire at
-// most once a week while the balance stays low, not once per crossing.
-// clientId limits it to one client; null is every client. The secret is in the
-// response once. Answers 'tell my system when a crawl finishes'. Free.
+// secret>, plus Seolyticize-Event and Seolyticize-Delivery headers. The body
+// is {id, type, createdAt, clientId, data, deliveryId}; get_webhook_schemas
+// has the JSON Schema of each type. Retried with backoff (1 min to a day)
+// until a 2xx; replay_webhooks sends missed ones again, redeliver_webhook one
+// event by its id. Events: crawl.completed, gsc.synced, rank.moved,
+// backlink.new, backlink.lost, issue.new_critical, ai.citation.gained,
+// ai.citation.lost, competitor.page.new, budget.threshold, alert.fired,
+// vendor.balance_low, vendor.balance_empty, deploy_hook.processed.
+// deploy_hook.processed fires on each deploy hook run with what it read,
+// changed and submitted. vendor.balance_low (at set_vendor_balance_alert's
+// threshold, default $5) and vendor.balance_empty fire at most once a week
+// while the balance stays low, not once per crossing, and reach client-scoped
+// webhooks too; vendor.balance_empty fires again, once a day, with
+// pausedScheduledRuns while scheduled rank runs wait for funds. clientId
+// limits it to one client; null is every client. The secret is in the response
+// once. Answers 'tell my system when a crawl finishes'. Free.
 func (c *Client) CreateWebhook(ctx context.Context, in CreateWebhookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_webhook", in)
 }
@@ -2778,6 +2844,32 @@ func (c *Client) GenerateSchema(ctx context.Context, in GenerateSchemaInput) (js
 	return c.Call(ctx, "generate_schema", in)
 }
 
+// GetAgentAccessMatrixInput is the input to get_agent_access_matrix.
+type GetAgentAccessMatrixInput struct {
+	ClientID string   `json:"clientId"`
+	URLs     []string `json:"urls,omitempty"`
+	MaxURLs  *int64   `json:"maxUrls,omitempty"`
+}
+
+// GetAgentAccessMatrix calls get_agent_access_matrix: What each crawler and
+// assistant is served. Fetches the homepage and one page per URL template from
+// the latest crawl (or urls, up to maxUrls, on the client's site) as each of:
+// a browser (Chrome); Googlebot and Bingbot (sent from Seolyticize's IPs, so
+// spoofed: what a client that cannot prove it is Google sees); GPTBot,
+// OAI-SearchBot and ChatGPT-User; PerplexityBot and Perplexity-User; ClaudeBot
+// and Claude-User; Applebot; facebookexternalhit, Twitterbot and Slackbot.
+// Returns a matrix of status, title, H1, canonical, word count and bytes per
+// URL and agent, without running JavaScript, and in each cell differs names
+// the fields that differ from the browser's answer (a status, title, H1 or
+// canonical that changed; words or bytes under half). Finds the site that
+// serves crawlers and assistants an app shell, a challenge page or a block
+// while browsers get the page — often a CDN's bot rule rather than anything in
+// the site's code. Answers 'what does ChatGPT see on our site' and 'are AI
+// crawlers blocked'. Free.
+func (c *Client) GetAgentAccessMatrix(ctx context.Context, in GetAgentAccessMatrixInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_agent_access_matrix", in)
+}
+
 // GetAgentReadinessInput is the input to get_agent_readiness.
 type GetAgentReadinessInput struct {
 	ClientID string `json:"clientId"`
@@ -3394,16 +3486,21 @@ type GetAuditSummaryInput struct {
 // accepted as intentional (accept_issue) are taken out of the counts and
 // listed apart in accepted, each with its reason; with path owners set
 // (set_path_owners), each issue says how its pages split between owners
-// (owners) and byOwner totals them. fixes groups the same findings by URL
-// template (the client's analytics pathTemplates, then paths that differ in
-// one segment under a common prefix, /templates/*): one row per rule and
-// template with its pages, an example page and sharedMessage (the message most
-// of its pages share: the template's one cause), the rule's pages that fit no
-// template in one row of their own; issuesFound counts distinct fixes (one per
-// rule and template, plus one per page that fits no template) and findingPages
-// the pages behind them, accepted findings left out of both. A template row
-// over 50 pages carries acceptIssue, the accept_issue call (dryRun) for when
-// those pages are that way on purpose.
+// (owners) and byOwner totals them. stages counts each issue's findings by the
+// HTML they came from: raw (the page as served; it was not rendered), rendered
+// (only after JavaScript ran: hydration, not the template, caused it) or both;
+// content-lost-on-render names pages whose JavaScript removes words, the
+// title, canonical or H1 the raw HTML had, and shared-shell routes that all
+// answer with one document. fixes groups the same findings by URL template
+// (the client's analytics pathTemplates, then paths that differ in one segment
+// under a common prefix, /templates/*): one row per rule and template with its
+// pages, an example page and sharedMessage (the message most of its pages
+// share: the template's one cause), the rule's pages that fit no template in
+// one row of their own; issuesFound counts distinct fixes (one per rule and
+// template, plus one per page that fits no template) and findingPages the
+// pages behind them, accepted findings left out of both. A template row over
+// 50 pages carries acceptIssue, the accept_issue call (dryRun) for when those
+// pages are that way on purpose.
 func (c *Client) GetAuditSummary(ctx context.Context, in GetAuditSummaryInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_audit_summary", in)
 }
@@ -4198,8 +4295,9 @@ type GetConversionsInput struct {
 // organic search worth'. source web_analytics uses the cookieless analytics'
 // custom events (goals: the event names; default the client's event goals, or
 // every event when it has none, which a note says; value from a 'value'
-// property); ga4 uses GA4's key events on organic sessions. channel narrows to
-// search engines or AI assistants. Free.
+// property, summed as sent and read in major units: 25 is 25.00); ga4 uses
+// GA4's key events on organic sessions. channel narrows to search engines or
+// AI assistants. Free.
 func (c *Client) GetConversions(ctx context.Context, in GetConversionsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_conversions", in)
 }
@@ -4248,11 +4346,12 @@ type GetCrawlSettingsInput struct {
 // group obeyed, speed (requests per second and concurrency), query parameters
 // stripped from discovered URLs, custom extraction rules, JavaScript rendering
 // (off, shells — only pages that look unrendered — or all, up to
-// renderMaxPages a crawl), whether staging credentials are set (names only,
-// never values), whether requests are signed with Web Bot Auth, and the crawl
-// schedule (cadence, day, UTC hour and nextRunAt; weekly on Monday 02:00 UTC
-// unless set_crawl_schedule changed it). Answers 'what does the crawl do
-// differently for this site'. Free.
+// renderMaxPages a crawl), template sampling (sample.perTemplate, or null),
+// whether staging credentials are set (names only, never values), whether
+// requests are signed with Web Bot Auth, and the crawl schedule (cadence, day,
+// UTC hour and nextRunAt; weekly on Monday 02:00 UTC unless set_crawl_schedule
+// changed it). Answers 'what does the crawl do differently for this site'.
+// Free.
 func (c *Client) GetCrawlSettings(ctx context.Context, in GetCrawlSettingsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_crawl_settings", in)
 }
@@ -4264,8 +4363,10 @@ type GetCrawlStatusInput struct {
 }
 
 // GetCrawlStatus calls get_crawl_status: Get crawl status. Whether one crawl
-// is running, complete or failed, with page and issue counts and the failure
-// reason. Answers 'has the audit finished'.
+// is running, complete or failed, with page and issue counts, the failure
+// reason, and the crawl settings it read when a crawler picked it up
+// (settings, settingsVersion; settingsFrom current while it is still queued).
+// Answers 'has the audit finished'.
 func (c *Client) GetCrawlStatus(ctx context.Context, in GetCrawlStatusInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_crawl_status", in)
 }
@@ -6711,6 +6812,29 @@ func (c *Client) GetSerpVolatility(ctx context.Context, in GetSerpVolatilityInpu
 	return c.Call(ctx, "get_serp_volatility", in)
 }
 
+// GetServerSnippetInput is the input to get_server_snippet.
+type GetServerSnippetInput struct {
+	ClientID           string `json:"clientId"`
+	Server             string `json:"server"`
+	GoogleVerification string `json:"googleVerification,omitempty"` // The file name issue_site_verification returned, e.g. google1a2b3c.html.
+	BingSiteAuth       string `json:"bingSiteAuth,omitempty"`       // The code inside add_bing_site's BingSiteAuth.xml.
+	TraefikService     string `json:"traefikService,omitempty"`
+}
+
+// GetServerSnippet calls get_server_snippet: Get web-server config for the
+// verification files. Answers 'how do I serve the verification files from
+// nginx (or Caddy, Traefik, Cloudflare)'. Returns config that answers the
+// client's IndexNow key file, and Google's file and BingSiteAuth.xml when you
+// pass their codes (googleVerification from issue_site_verification,
+// bingSiteAuth from add_bing_site), straight from the server config (nginx
+// location = blocks), so a single-page app's index.html fallback never answers
+// for them. Traefik gets a router sending the paths to your static service
+// (traefikService). Also returns the CSP origins the tag needs. The
+// @seolyticize/vite plugin writes the same config at build time. Free.
+func (c *Client) GetServerSnippet(ctx context.Context, in GetServerSnippetInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_server_snippet", in)
+}
+
 // GetShareOfSearchInput is the input to get_share_of_search.
 type GetShareOfSearchInput struct {
 	ClientID string   `json:"clientId"`
@@ -6923,6 +7047,33 @@ type GetSxoGapInput struct {
 // quote with estimate_cost.
 func (c *Client) GetSxoGap(ctx context.Context, in GetSxoGapInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_sxo_gap", in)
+}
+
+// GetTemplateReportInput is the input to get_template_report.
+type GetTemplateReportInput struct {
+	ClientID string `json:"clientId"`
+	CrawlID  string `json:"crawlId,omitempty"` // A crawl id from list_crawls, or "latest" for the newest complete one.
+	Limit    *int64 `json:"limit,omitempty"`
+}
+
+// GetTemplateReport calls get_template_report: The crawl by URL template and
+// by owner. One crawl read by URL template (ids and numbered slugs replaced by
+// *, siblings folded: /shop/i/*) and by path owner (set_path_owners): per
+// template its pages and examples, index coverage (indexable against not),
+// owners, its most common issues, merchant listing eligibility (pages marking
+// up a Product, and those free of the merchant-listing and rich-result-product
+// findings, with what blocks the rest), pages that answered 200 in the crawl
+// before and 404 now (sold or expired items: answer 410, or keep the page with
+// availability SoldOut), and performance: response time p50, p75 and max as
+// the crawler measured it, pages over 600 ms and over 3 s, and pages sending
+// neither ETag nor Last-Modified. byOwner totals pages, issues and performance
+// per owner, null being the client's own pages, so a partner's numbers can be
+// sent to the partner. Pairs with set_crawl_settings sample.perTemplate, which
+// crawls N pages of each template. Field data (Chrome UX Report) is per URL in
+// get_vitals_history. Answers 'which template is broken', 'which listings
+// sold' and 'how fast are Forumulate's pages'. Free.
+func (c *Client) GetTemplateReport(ctx context.Context, in GetTemplateReportInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_template_report", in)
 }
 
 // GetTopPagesInput is the input to get_top_pages.
@@ -7260,13 +7411,18 @@ type GetWebAnalyticsSetupInput struct {
 // its fragment), siteKey (the public key the snippet carries as data-site-key
 // or data-site; not the internal site_ id in crawl ids), collectUrl for
 // sending events from your own code (get_collect_contract has the fields and
-// limits), the hostnames allowed to report, includePaths, excludePaths and
-// respectRobots with rules (what the server records and drops, in sentences:
-// the server's settings win over the snippet's data-include and data-exclude),
-// clients (the newest version of each Seolyticize package seen reporting), and
-// lastEventAt (null until the first visit is recorded). Answers 'is the
-// tracking script installed' and 'what snippet do I add to the site'.
-// configured is false when no snippet has been created yet. Free.
+// limits), the hostnames allowed to report, includePaths, excludePaths,
+// excludeKeepsEvents and respectRobots with rules (what the server records and
+// drops, in sentences: the server's settings win over the snippet's
+// data-include and data-exclude), testEventAt (the last create_test_token
+// event), rejectedPii (the last custom-event property dropped because it
+// looked like an email, phone or card number: {prop, at}), clients (the newest
+// version of each Seolyticize package seen reporting), lastEventAt (null until
+// the first visit is recorded), and tagSeenAt (when a.js last loaded on one of
+// the site's pages, consent or not; set while no visit is counted yet means
+// the tag is installed). Answers 'is the tracking script installed' and 'what
+// snippet do I add to the site'. configured is false when no snippet has been
+// created yet. Free.
 func (c *Client) GetWebAnalyticsSetup(ctx context.Context, in GetWebAnalyticsSetupInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_web_analytics_setup", in)
 }
@@ -7281,15 +7437,33 @@ type GetWebAnalyticsSummaryInput struct {
 // (first-party). Visitors, visits, pageviews, views per visit, bounce rate and
 // average visit duration from Seolyticize's own web analytics, against the
 // same span before (previous is null when that span was not fully measured),
-// plus a daily series, realtimeVisitors in the last 30 minutes, and notes on
-// how figures are counted. Days before the site's own first event that were
-// imported with import_analytics_csv are filled in the daily series (imported:
-// true) and totalled in imported, never added to summary. Answers 'how much
-// traffic did the site get' for a client without GA4. Visitors are counted per
-// day without cookies; a figure of null means not measured, not zero. Refuses
-// with a sentence when web analytics has not been set up for the client. Free.
+// plus a daily series, realtimeVisitors in the last 30 minutes, annotations
+// (the period's timeline notes, oldest first: every deploy-hook call adds one
+// with its ref and pages submitted, so a change in traffic can be laid beside
+// a release) and notes on how figures are counted. Days before the site's own
+// first event that were imported with import_analytics_csv are filled in the
+// daily series (imported: true) and totalled in imported, never added to
+// summary. Answers 'how much traffic did the site get' for a client without
+// GA4. Visitors are counted per day without cookies; a figure of null means
+// not measured, not zero. Refuses with a sentence when web analytics has not
+// been set up for the client. Free.
 func (c *Client) GetWebAnalyticsSummary(ctx context.Context, in GetWebAnalyticsSummaryInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_web_analytics_summary", in)
+}
+
+// GetWebhookSchemasInput is the input to get_webhook_schemas.
+type GetWebhookSchemasInput struct {
+	Type string `json:"type,omitempty"`
+}
+
+// GetWebhookSchemas calls get_webhook_schemas: The JSON Schema of each webhook
+// event. The JSON Schema (2020-12) of a webhook delivery body for each event
+// type, or for the one type given: the envelope {id, type, createdAt,
+// clientId, data, deliveryId} and that type's data. Fields are added over
+// time, never removed. Answers 'what does a crawl.completed webhook look
+// like'. Free.
+func (c *Client) GetWebhookSchemas(ctx context.Context, in GetWebhookSchemasInput) (json.RawMessage, error) {
+	return c.Call(ctx, "get_webhook_schemas", in)
 }
 
 // GetWrittenReportInput is the input to get_written_report.
@@ -7604,7 +7778,8 @@ func (c *Client) IssueIndexnowKey(ctx context.Context, in IssueIndexnowKeyInput)
 
 // IssueServerCollectKeyInput is the input to issue_server_collect_key.
 type IssueServerCollectKeyInput struct {
-	ClientID string `json:"clientId"`
+	ClientID   string `json:"clientId"`
+	GraceHours *int64 `json:"graceHours,omitempty"` // Keep accepting the key being replaced for this many hours (default 0: it stops now). list_collect_keys shows it as grace until then.
 }
 
 // IssueServerCollectKey calls issue_server_collect_key: Key for server-side
@@ -7614,8 +7789,10 @@ type IssueServerCollectKeyInput struct {
 // visitor's own address and user agent (body fields ip and ua; howToUse lists
 // the rest) — which is what lets it count people, and the AI assistants
 // (ChatGPT-User, Claude-User, Perplexity-User) that never run the browser tag.
-// Shown once; issuing another revokes the last. Answers 'track visits from our
-// server' and 'count AI agents reading our pages'. Free.
+// Shown once; issuing another revokes the last, at once or, with graceHours,
+// once previousKeyExpiresAt passes, so a rotation never drops events while the
+// new key rolls out. Answers 'track visits from our server', 'rotate the
+// collect key' and 'count AI agents reading our pages'. Free.
 func (c *Client) IssueServerCollectKey(ctx context.Context, in IssueServerCollectKeyInput) (json.RawMessage, error) {
 	return c.Call(ctx, "issue_server_collect_key", in)
 }
@@ -7736,6 +7913,26 @@ func (c *Client) LinkContentPlatform(ctx context.Context, in LinkContentPlatform
 	return c.Call(ctx, "link_content_platform", in)
 }
 
+// LinkWatchtowerInput is the input to link_watchtower.
+type LinkWatchtowerInput struct {
+	ClientID  string `json:"clientId"`
+	ProjectID string `json:"projectId"`
+	APIKey    string `json:"apiKey,omitempty"`
+}
+
+// LinkWatchtower calls link_watchtower: Link the client's Watchtower project.
+// Links a client to its Watchtower project once: every alert rule given no
+// destination goes there from then on, the default rules still going to the
+// owner's email are moved there (and resumed if they were paused for want of
+// email), and Watchtower owns uptime, so site-unreachable is paused and later
+// add_default_alerts calls leave it out. apiKey is a Watchtower
+// service-account key (wta_…) with events:write, stored sealed and never
+// returned. projectId null unlinks; rules already sent there stay. Answers
+// 'send this client's alerts to Watchtower'. Free.
+func (c *Client) LinkWatchtower(ctx context.Context, in LinkWatchtowerInput) (json.RawMessage, error) {
+	return c.Call(ctx, "link_watchtower", in)
+}
+
 // ListAcceptedIssuesInput is the input to list_accepted_issues.
 type ListAcceptedIssuesInput struct {
 	ClientID      string `json:"clientId"`
@@ -7807,6 +8004,25 @@ type ListAPIKeysInput struct {
 // Lists keys to audit or revoke. Never returns a key.
 func (c *Client) ListAPIKeys(ctx context.Context, in ListAPIKeysInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_api_keys", in)
+}
+
+// ListAuditEventsInput is the input to list_audit_events.
+type ListAuditEventsInput struct {
+	ClientID string `json:"clientId"`
+	Since    string `json:"since,omitempty"` // ISO time to list from; default 30 days ago.
+	Limit    *int64 `json:"limit,omitempty"`
+}
+
+// ListAuditEvents calls list_audit_events: What changed a client's settings. A
+// client's change history: every successful call that changed something for it
+// (an exclude, a goal, an alert channel, a crawl setting, a key's sitemap),
+// newest first, with the tool, the actor (apikey:<keyId> or the person's user
+// id), the surface (rest, mcp-http, web…) and changes: the arguments it was
+// called with, secrets shown as [redacted]. It records what was asked for, not
+// the value before. Calls made before 2026-11-18 are not in it. Answers 'which
+// integration changed our excludes'. Free.
+func (c *Client) ListAuditEvents(ctx context.Context, in ListAuditEventsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "list_audit_events", in)
 }
 
 // ListClientFactsInput is the input to list_client_facts.
@@ -8056,8 +8272,9 @@ type ListIssuePagesInput struct {
 // (default true) leaves out findings on pages search engines will not index as
 // themselves — noindexed, not answering 200, or canonicalised elsewhere —
 // except the findings that explain why; pass false to see everything. Each
-// page carries its path owner (owner, from set_path_owners) and, when
-// accept_issue covers it, accepted with the reason. Free.
+// page carries its path owner (owner, from set_path_owners), stage (raw,
+// rendered or both: which HTML the finding came from; empty for cross-page
+// findings) and, when accept_issue covers it, accepted with the reason. Free.
 func (c *Client) ListIssuePages(ctx context.Context, in ListIssuePagesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_issue_pages", in)
 }
@@ -8447,6 +8664,25 @@ func (c *Client) ListWrittenReports(ctx context.Context, in ListWrittenReportsIn
 	return c.Call(ctx, "list_written_reports", in)
 }
 
+// MergeRobotsInput is the input to merge_robots.
+type MergeRobotsInput struct {
+	ClientID string `json:"clientId"`
+	Current  string `json:"current,omitempty"` // The robots.txt to merge into; the live file when omitted.
+}
+
+// MergeRobots calls merge_robots: Merge our robots.txt lines into yours. Adds
+// what onboard_site proposes for robots.txt (the suggested Disallow lines in
+// the User-agent: * group, and the Sitemap line) to the file the site serves,
+// without replacing it: every existing line and group stays as it is (a
+// Cloudflare-managed Content-Signal line, AI-crawler groups), and only missing
+// lines are added. Reads the live robots.txt unless current is given. Returns
+// the merged file, the lines added and a diff; deploy it, then test_robots
+// checks the live file. Answers 'can we deploy your robots.txt' and 'what
+// should we add to robots.txt'. Writes nothing. Free.
+func (c *Client) MergeRobots(ctx context.Context, in MergeRobotsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "merge_robots", in)
+}
+
 // MineAppReviewsInput is the input to mine_app_reviews.
 type MineAppReviewsInput struct {
 	ClientID      string `json:"clientId"`
@@ -8536,11 +8772,12 @@ func (c *Client) NotifyGoogleIndexing(ctx context.Context, in NotifyGoogleIndexi
 type OnboardSiteInput struct {
 	Domain           string   `json:"domain"`
 	Name             string   `json:"name,omitempty"`
-	Framework        string   `json:"framework,omitempty"`
+	Framework        string   `json:"framework,omitempty"` // Where the tag and robots.txt go. nextjs: the @seolyticize/next component and app/robots.ts. astro, remix, sveltekit, nuxt, wordpress: the script tag in that fra
 	Keywords         []string `json:"keywords,omitempty"`
 	Verification     string   `json:"verification,omitempty"`     // file (a page at the site root, the default), meta (a tag in the <head>) or dns (a TXT record, which also covers every subdomain and protocol).
 	HealthKey        *bool    `json:"healthKey,omitempty"`        // Also make a read-only key pinned to this client that can spend nothing, for seolyticize doctor. It is shown once in healthKey.key; a later call keeps it and ret
 	TrackerFrequency string   `json:"trackerFrequency,omitempty"` // How often the client's rank tracker runs once it has keywords: weekly is the default for a new tracker. Applied to an existing client's trackers too. update_ran
+	FirstCrawl       string   `json:"firstCrawl,omitempty"`       // When the site's first crawl runs. afterVerify (the default for a new client): once verify_site is called, after the files are deployed, so the crawl sees the de
 	DryRun           *bool    `json:"dryRun,omitempty"`           // True to write nothing and get the plan: what it would create, whether the plan has room for the client (planAllows, planRefusal), what the site must serve and t
 }
 
@@ -8943,6 +9180,21 @@ type RedeliverAlertInput struct {
 // an alert that was delivered, so the channel gets it twice. Free.
 func (c *Client) RedeliverAlert(ctx context.Context, in RedeliverAlertInput) (json.RawMessage, error) {
 	return c.Call(ctx, "redeliver_alert", in)
+}
+
+// RedeliverWebhookInput is the input to redeliver_webhook.
+type RedeliverWebhookInput struct {
+	EventID   string `json:"eventId"`
+	WebhookID string `json:"webhookId,omitempty"`
+}
+
+// RedeliverWebhook calls redeliver_webhook: Send one event again. Queues one
+// recorded event again by its id (the id in the delivery body), as a new
+// delivery: to webhookId, or to every live webhook of this key's that
+// subscribes to its type and client. queued is 0 when the id is not this
+// agency's or nothing subscribes. Answers 'resend event evt_…'. Free.
+func (c *Client) RedeliverWebhook(ctx context.Context, in RedeliverWebhookInput) (json.RawMessage, error) {
+	return c.Call(ctx, "redeliver_webhook", in)
 }
 
 // RefreshDomainDataInput is the input to refresh_domain_data.
@@ -9353,20 +9605,39 @@ func (c *Client) RewriteSection(ctx context.Context, in RewriteSectionInput) (js
 	return c.Call(ctx, "rewrite_section", in)
 }
 
+// RotateAPIKeyInput is the input to rotate_api_key.
+type RotateAPIKeyInput struct {
+	KeyID      string `json:"keyId"`
+	GraceHours *int64 `json:"graceHours,omitempty"`
+}
+
+// RotateAPIKey calls rotate_api_key: Rotate an API key. Replaces a key with a
+// new one of the same name, client, role, ceiling and allowedCidrs, and
+// returns the new key once. The old key keeps working until
+// previousKeyExpiresAt (graceHours from now, default 24; 0 stops it at once),
+// so a deploy can switch keys without a window of refused calls. Answers
+// 'rotate the CI key'. Free.
+func (c *Client) RotateAPIKey(ctx context.Context, in RotateAPIKeyInput) (json.RawMessage, error) {
+	return c.Call(ctx, "rotate_api_key", in)
+}
+
 // RotateDeployHookInput is the input to rotate_deploy_hook.
 type RotateDeployHookInput struct {
 	ClientID   string   `json:"clientId"`
 	SitemapURL string   `json:"sitemapUrl,omitempty"` // Read this sitemap from now on.
 	Sitemaps   []string `json:"sitemaps,omitempty"`   // Sitemaps to read as well as the site's own, on any host (a CMS elsewhere). Every call diffs each one and the reply gives bySitemap: its pages and how many chang
 	PathURL    *bool    `json:"pathUrl,omitempty"`    // false: leave webhookUrl, the secret in a path, out of the answer.
+	GraceHours *int64   `json:"graceHours,omitempty"` // Keep the old secret and webhookUrl working for this many hours (default 0: they stop now).
 }
 
 // RotateDeployHook calls rotate_deploy_hook: Rotate the deploy hook's secret.
 // Answers 'that deploy hook secret leaked, replace it' and 'point the hook at
 // another sitemap'. Replaces the secret: the old secret and the old webhookUrl
-// stop working at once, while hookId, url and the sitemap baseline stay.
-// Returns the new secret and webhookUrl once, with howToCall. Pass sitemapUrl
-// to change the sitemap read; without it the current one is kept. Free.
+// stop working at once, or with graceHours keep working until
+// previousSecretExpiresAt, so the pipeline can take the new one without a
+// missed deploy; hookId, url and the sitemap baseline stay. Returns the new
+// secret and webhookUrl once, with howToCall. Pass sitemapUrl to change the
+// sitemap read; without it the current one is kept. Free.
 func (c *Client) RotateDeployHook(ctx context.Context, in RotateDeployHookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "rotate_deploy_hook", in)
 }
@@ -9968,9 +10239,14 @@ type SetBudgetInput struct {
 // client's monthly spending budget in USD (null removes it; paid calls past it
 // are refused) and the share of it, 0–1, at which a budget.threshold event and
 // alert fire once that month (null turns the alert off). Leave either out to
-// keep it. A per-call ceiling belongs to an API key: create_api_key's
-// maxCostUsdPerCall. Answers 'cap this client at $50 a month and warn me at
-// 80%'. Free.
+// keep it. The budget caps vendor spend: what this client's calls cost on the
+// agency's own DataForSEO account, plus model calls at cost, as
+// get_client_costs lists them. It is not the Seolyticize plan, which is billed
+// separately and never counted here. A per-call ceiling belongs to an API key:
+// create_api_key's maxCostUsdPerCall; any paid tool's dryRun: true quotes a
+// call first. The agency's DataForSEO balance itself is watched with
+// set_vendor_balance_alert. Answers 'cap this client at $50 a month and warn
+// me at 80%'. Free.
 func (c *Client) SetBudget(ctx context.Context, in SetBudgetInput) (json.RawMessage, error) {
 	return c.Call(ctx, "set_budget", in)
 }
@@ -10058,6 +10334,7 @@ type SetCrawlSettingsInput struct {
 	Concurrency       *int64           `json:"concurrency,omitempty"`
 	MaxDepth          *int64           `json:"maxDepth,omitempty"`
 	MaxPages          *int64           `json:"maxPages,omitempty"`
+	Sample            map[string]any   `json:"sample,omitempty"`
 	DryRun            *bool            `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
 }
 
@@ -10071,23 +10348,30 @@ type SetCrawlSettingsInput struct {
 // is still read to find them). maxPages (up to 20,000) and maxDepth (clicks
 // from the start, up to 50). userAgent: preset seolyticize (default),
 // googlebot-smartphone, googlebot-desktop, bingbot, chrome, or custom with
-// your own string; robots.txt is obeyed as that crawler. requestsPerSecond
-// (0.2–10, default 4) and concurrency (1–5); the crawler still backs off on
-// 429s, 5xx and Retry-After. For staging sites' passwords, headers and cookies
-// use set_crawl_auth. stripParams removes query parameters from every
-// discovered URL (names, or prefixes like utm_*), so sorted and filtered
-// copies of a page are crawled once; names match whatever their case (returnTo
-// strips ?returnTo= and ?returnto=), so they are saved lower-cased.
-// extractions reads values off every page (up to 10): css (a selector,
-// optionally an attribute), xpath (//div[@class='author'],
-// //meta[@property='og:type']/@content, (//a)[1]/@href — child and descendant
-// steps, attribute and text tests, positions), regex (first group), jsonld
-// ('Article.datePublished') or meta (a name or property) — see
-// get_extraction_results. render runs JavaScript: off, shells (pages that look
-// unrendered) or all, capped at renderMaxPages. Answers 'crawl this site this
-// way'. dryRun: true shows the current settings and, when includePatterns or
-// excludePatterns are given, tries each against the live sitemap:
-// patternCheck.matchNothing lists those that match no page. Free.
+// your own string; robots.txt is always obeyed as that crawler, and there is
+// no setting to ignore it (no respectRobots): to crawl a disallowed path,
+// allow it for that crawler in robots.txt. requestsPerSecond (0.2–10, default
+// 4) and concurrency (1–5); the crawler still backs off on 429s, 5xx and
+// Retry-After. For staging sites' passwords, headers and cookies use
+// set_crawl_auth. stripParams removes query parameters from every discovered
+// URL (names, or prefixes like utm_*), so sorted and filtered copies of a page
+// are crawled once; names match whatever their case (returnTo strips
+// ?returnTo= and ?returnto=), so they are saved lower-cased. extractions reads
+// values off every page (up to 10): css (a selector, optionally an attribute),
+// xpath (//div[@class='author'], //meta[@property='og:type']/@content,
+// (//a)[1]/@href — child and descendant steps, attribute and text tests,
+// positions), regex (first group), jsonld ('Article.datePublished') or meta (a
+// name or property) — see get_extraction_results. render runs JavaScript: off,
+// shells (pages that look unrendered, or answer like the shell other routes
+// share) or all, capped at renderMaxPages. sample: {perTemplate: 50} crawls at
+// most 50 URLs of each URL template (ids and numbered slugs replaced by *,
+// from the sitemap and from discovered links) plus every page that belongs to
+// no template, so a large catalogue's budget reaches every template instead of
+// the first one listed; null turns sampling off; get_template_report then
+// reports by template. Answers 'crawl this site this way'. dryRun: true shows
+// the current settings and, when includePatterns or excludePatterns are given,
+// tries each against the live sitemap: patternCheck.matchNothing lists those
+// that match no page. Free.
 func (c *Client) SetCrawlSettings(ctx context.Context, in SetCrawlSettingsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "set_crawl_settings", in)
 }
@@ -10235,13 +10519,14 @@ func (c *Client) SetReportSharing(ctx context.Context, in SetReportSharingInput)
 
 // SetUpWebAnalyticsInput is the input to set_up_web_analytics.
 type SetUpWebAnalyticsInput struct {
-	ClientID      string           `json:"clientId"`
-	Hostnames     []string         `json:"hostnames,omitempty"`
-	ExcludePaths  []string         `json:"excludePaths,omitempty"`  // Paths never recorded, enforced on the server whatever the snippet says: ["/app/*", "/verify", "/reset"]. "*" matches anything. Replaces the list; [] clears it.
-	IncludePaths  []string         `json:"includePaths,omitempty"`  // When set, only pageviews on these paths are recorded: ["/", "/blog/*"]. A custom event elsewhere (a sign-up that lands in the app) still counts, stored without
-	PathTemplates []string         `json:"pathTemplates,omitempty"` // Paths stored under a template when they fit, so names and ids in a path are never stored and their pages count together: ["/:username/:slug"] stores /ada/intro-
-	Partners      []map[string]any `json:"partners,omitempty"`      // Third parties serving pages on this site (a docs, blog or forum host) under the same site key. Their events send p: {source: "<name>"}, are kept only on their p
-	RespectRobots *bool            `json:"respectRobots,omitempty"` // True to drop pageviews on paths the site's robots.txt disallows for "*" (X-Seolyticize-Dropped: robots_disallowed); a custom event there is kept without its pat
+	ClientID           string           `json:"clientId"`
+	Hostnames          []string         `json:"hostnames,omitempty"`
+	ExcludePaths       []string         `json:"excludePaths,omitempty"`       // Paths never recorded, enforced on the server whatever the snippet says: ["/app/*", "/verify", "/reset"]. "*" matches anything. Unlike includePaths and respectRo
+	ExcludeKeepsEvents *bool            `json:"excludeKeepsEvents,omitempty"` // True to keep a custom event fired on an excludePaths match, stored without its path and credited to its visit's landing page and source, as outside includePaths
+	IncludePaths       []string         `json:"includePaths,omitempty"`       // When set, only pageviews on these paths are recorded: ["/", "/blog/*"]. A custom event elsewhere (a sign-up that lands in the app) still counts, stored without
+	PathTemplates      []string         `json:"pathTemplates,omitempty"`      // Paths stored under a template when they fit, so names and ids in a path are never stored and their pages count together: ["/:username/:slug"] stores /ada/intro-
+	Partners           []map[string]any `json:"partners,omitempty"`           // Third parties serving pages on this site (a docs, blog or forum host) under the same site key. Their events send p: {source: "<name>"}, are kept only on their p
+	RespectRobots      *bool            `json:"respectRobots,omitempty"`      // True to drop pageviews on paths the site's robots.txt disallows for "*" (X-Seolyticize-Dropped: robots_disallowed); a custom event there is kept without its pat
 }
 
 // SetUpWebAnalytics calls set_up_web_analytics: Set up web analytics. Creates
@@ -10257,6 +10542,24 @@ type SetUpWebAnalyticsInput struct {
 // no site domain to default to and no hostnames were given. Free.
 func (c *Client) SetUpWebAnalytics(ctx context.Context, in SetUpWebAnalyticsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "set_up_web_analytics", in)
+}
+
+// SetVendorBalanceAlertInput is the input to set_vendor_balance_alert.
+type SetVendorBalanceAlertInput struct {
+	ThresholdUsd *float64 `json:"thresholdUsd"`
+}
+
+// SetVendorBalanceAlert calls set_vendor_balance_alert: When to warn that the
+// DataForSEO balance is low. Sets the agency's DataForSEO balance, in USD, at
+// or below which vendor.balance_low fires (default $5; null restores it). The
+// balance is read daily: vendor.balance_low or vendor.balance_empty goes to
+// the agency's webhooks and to every client-scoped webhook subscribed to it,
+// at most once a week each, and verify_site lists vendor_balance. While the
+// balance is empty, scheduled rank tracker runs wait instead of failing, once
+// vendor.balance_empty says so, and run when funds are back. Answers 'warn us
+// before DataForSEO runs dry'. Free.
+func (c *Client) SetVendorBalanceAlert(ctx context.Context, in SetVendorBalanceAlertInput) (json.RawMessage, error) {
+	return c.Call(ctx, "set_vendor_balance_alert", in)
 }
 
 // SimulateSerpSnippetInput is the input to simulate_serp_snippet.
@@ -10287,10 +10590,12 @@ type StartCrawlInput struct {
 
 // StartCrawl calls start_crawl: Start a site audit crawl. Crawls the client's
 // site now rather than waiting for the schedule. Answers 'audit the site
-// again'. status is queued for a new crawl, or running when one already was
-// (returned instead of starting a second). Pass the jobId it returns to
-// wait_for_job (or poll get_crawl_status with the crawl id); read results with
-// list_crawl_issues.
+// again'. status is queued until a crawler picks the crawl up (with position,
+// 1 next in line) and running once it fetches; a crawl already under way is
+// returned instead of starting a second (alreadyRunning). settings and
+// settingsVersion are the crawl settings it runs with. Pass the jobId it
+// returns to wait_for_job (or poll get_crawl_status with the crawl id); read
+// results with list_crawl_issues.
 func (c *Client) StartCrawl(ctx context.Context, in StartCrawlInput) (json.RawMessage, error) {
 	return c.Call(ctx, "start_crawl", in)
 }
@@ -10657,13 +10962,18 @@ func (c *Client) TagListKeywords(ctx context.Context, in TagListKeywordsInput) (
 type TestAlertRuleInput struct {
 	ClientID string `json:"clientId"`
 	RuleID   string `json:"ruleId"`
+	DryRun   *bool  `json:"dryRun,omitempty"` // True to send nothing and get the rendered message and payload.
 }
 
 // TestAlertRule calls test_alert_rule: Send a test alert. Sends one test alert
-// down a rule's channel now — Slack, Discord, webhook, email or Telegram — and
-// says whether it was delivered, with the reason when it was not. Answers 'did
-// the Discord alert work'. Nothing is recorded as fired and the cooldown is
-// untouched. Free.
+// down a rule's channel now — Slack, Discord, webhook, email, Telegram,
+// Watchtower or Hermetica — and says whether it was delivered, with the reason
+// when it was not. dryRun: true sends nothing and answers rendered: {channel,
+// payload}, the exact body the channel would get (Slack blocks, the webhook
+// JSON, the email subject, text and html, the Telegram HTML, the Watchtower
+// event), so a channel can be chosen before anything is sent. Answers 'did the
+// Discord alert work' and 'what will the alert look like'. Nothing is recorded
+// as fired and the cooldown is untouched. Free.
 func (c *Client) TestAlertRule(ctx context.Context, in TestAlertRuleInput) (json.RawMessage, error) {
 	return c.Call(ctx, "test_alert_rule", in)
 }
@@ -10715,6 +11025,7 @@ type UpdateAlertRuleInput struct {
 	EmailRecipients     []string `json:"emailRecipients,omitempty"`
 	TelegramChatID      string   `json:"telegramChatId,omitempty"`
 	APIKey              string   `json:"apiKey,omitempty"`              // watchtower: a Watchtower service-account key (wta_…) holding only events:write, the narrowest that can post events (an ingest wti_ key is refused there with 403
+	BotToken            string   `json:"botToken,omitempty"`            // telegram: the customer's own bot token from @BotFather (123456:ABC…), so alerts post as their bot in a chat it already belongs to, without the agency's bot. Sto
 	WatchtowerProjectID string   `json:"watchtowerProjectId,omitempty"` // watchtower: the project id, as in /v1/projects/{prj}.
 	HermeticaFrom       string   `json:"hermeticaFrom,omitempty"`       // hermetica: the sender address, verified in the Hermetica workspace.
 	Paused              *bool    `json:"paused,omitempty"`
@@ -10723,7 +11034,7 @@ type UpdateAlertRuleInput struct {
 
 // UpdateAlertRule calls update_alert_rule: Update an alert rule. Changes a
 // rule's threshold, cooldown or delivery (channel, webhookUrl — null removes
-// it — emailRecipients, telegramChatId, apiKey, watchtowerProjectId,
+// it — emailRecipients, telegramChatId, botToken, apiKey, watchtowerProjectId,
 // hermeticaFrom), or pauses and resumes it, or turns its paidSource on or off.
 // Answers 'this alert is too noisy', 'send this to email instead' or 'mute
 // this for now' (pause the site-unreachable rule when another monitor owns
@@ -11095,7 +11406,8 @@ type VerifySiteInput struct {
 // property, with its sixteen months of history), whether analytics has
 // received its first event, that robots.txt and the sitemap answer, and starts
 // the first crawl. Returns a checklist where every item not done carries the
-// exact fix and the next call. Safe to call again. Free.
+// exact fix and the next call. Safe to call again; a deployer key may call it.
+// Free.
 func (c *Client) VerifySite(ctx context.Context, in VerifySiteInput) (json.RawMessage, error) {
 	return c.Call(ctx, "verify_site", in)
 }
@@ -11148,10 +11460,11 @@ type WaitForJobInput struct {
 }
 
 // WaitForJob calls wait_for_job: Wait for a slow job. get_job that waits:
-// holds the call open until the job finishes or timeoutSeconds pass (at most
-// 60), then answers with its status, so an agent makes one call instead of
-// polling. Call again while it says running. Answers 'wait for the crawl'.
-// Free.
+// holds the call open until the job's status changes (queued to running, or to
+// done, failed or cancelled) or timeoutSeconds pass (at most 60), then answers
+// with its status, waitedSeconds, and reason: state_change or timeout. One
+// call instead of polling; call again while it says queued or running. Answers
+// 'wait for the crawl'. Free.
 func (c *Client) WaitForJob(ctx context.Context, in WaitForJobInput) (json.RawMessage, error) {
 	return c.Call(ctx, "wait_for_job", in)
 }

@@ -28,7 +28,10 @@ import (
 const DefaultBaseURL = "https://seolyticize.com"
 
 // Version is this SDK's version, sent as the user agent.
-const Version = "0.5.2"
+const Version = "0.5.3"
+
+// maxPolls is how many times a call that answered 202 is collected before giving up: ten minutes at 5 s.
+const maxPolls = 120
 
 // Client calls the Seolyticize API. The zero value is not usable; use New.
 type Client struct {
@@ -136,6 +139,8 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte, tool 
 	if c.APIKey == "" {
 		return nil, &Error{Message: "An API key is required: pass one to New or set SEOLYTICIZE_API_KEY.", Code: "no_api_key"}
 	}
+	// A slow call answers 202 with a key; the same body under it collects the answer.
+	key, polls := "", 0
 	for attempt := 0; ; attempt++ {
 		var reader io.Reader
 		if body != nil {
@@ -149,6 +154,9 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte, tool 
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Accept", "application/json")
 		request.Header.Set("User-Agent", "seolyticize-go/"+Version)
+		if key != "" {
+			request.Header.Set("Idempotency-Key", key)
+		}
 
 		response, err := c.HTTP.Do(request)
 		if err != nil {
@@ -165,6 +173,34 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte, tool 
 		response.Body.Close()
 		if readErr != nil {
 			return nil, readErr
+		}
+		if response.StatusCode == http.StatusAccepted || (response.StatusCode == http.StatusConflict && polls > 0) {
+			var pending struct {
+				IdempotencyKey   string  `json:"idempotencyKey"`
+				PollAfterSeconds float64 `json:"pollAfterSeconds"`
+			}
+			_ = json.Unmarshal(raw, &pending)
+			if pending.IdempotencyKey != "" {
+				key = pending.IdempotencyKey
+			}
+			if key == "" || polls >= maxPolls {
+				name := tool
+				if name == "" {
+					name = "The call"
+				}
+				return nil, &Error{Status: response.StatusCode, Message: name + " is still running. Send the same body again with Idempotency-Key: " + key + " for its answer.", Code: "still_running", Tool: tool}
+			}
+			polls++
+			attempt--
+			wait := 5 * time.Second
+			if pending.PollAfterSeconds > 0 {
+				wait = time.Duration(pending.PollAfterSeconds * float64(time.Second))
+			}
+			c.wait(ctx, wait)
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			continue
 		}
 		if response.StatusCode < 300 {
 			var envelope struct {

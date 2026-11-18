@@ -94,3 +94,25 @@ func TestOptionalNumbersArePointers(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestASlowCallIsCollectedUnderItsKey(t *testing.T) {
+	var calls atomic.Int32
+	var lastKey atomic.Value
+	c := fake(t, func(w http.ResponseWriter, r *http.Request) {
+		lastKey.Store(r.Header.Get("Idempotency-Key"))
+		switch calls.Add(1) {
+		case 1:
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"ok":true,"outcome":"queued","idempotencyKey":"async_k1","pollAfterSeconds":5}`))
+		case 2:
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":"Still running","code":"in_progress"}`))
+		default:
+			_, _ = w.Write([]byte(`{"data":{"done":true}}`))
+		}
+	})
+	data, err := c.Call(context.Background(), "start_crawl", map[string]any{"clientId": "c"})
+	if err != nil || string(data) != `{"done":true}` || calls.Load() != 3 || lastKey.Load() != "async_k1" {
+		t.Fatalf("data=%s err=%v calls=%d key=%v", data, err, calls.Load(), lastKey.Load())
+	}
+}
