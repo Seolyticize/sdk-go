@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 537
+const ToolCount = 539
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -28,6 +28,7 @@ var readOnlyTools = map[string]bool{
 	"check_url_safety":                true,
 	"compare_crawls":                  true,
 	"describe_datasets":               true,
+	"describe_tool":                   true,
 	"draft_agent_files":               true,
 	"estimate_ai_visibility_cost":     true,
 	"estimate_cost":                   true,
@@ -555,7 +556,8 @@ type ApplyManifestInput struct {
 	Brief            map[string]any   `json:"brief,omitempty"`
 	Analytics        map[string]any   `json:"analytics,omitempty"`    // set_up_web_analytics arguments; each list replaces the one there.
 	Crawl            map[string]any   `json:"crawl,omitempty"`        // set_crawl_settings arguments without clientId, such as {render: "shells", stripParams: ["ref"]}; checked by that tool.
-	Alerts           map[string]any   `json:"alerts,omitempty"`       // add_default_alerts arguments: the default alerts, sent here.
+	Alerts           map[string]any   `json:"alerts,omitempty"`       // add_default_alerts arguments: the default alerts, sent here. channel watchtower sends them to the project linked in platforms.watchtower.
+	PathOwners       []map[string]any `json:"pathOwners,omitempty"`   // set_path_owners with mode merge: each prefix gets this owner and contact; prefixes not listed (such as those mounts: auto adds) are kept. kept when every prefix
 	Platforms        map[string]any   `json:"platforms,omitempty"`    // Sibling platforms serving the client's pages. forumulate: link_content_platform for that host (its analytics hostname and its sitemap on the deploy hook); kept
 	Environments     []map[string]any `json:"environments,omitempty"` // set_environments: the site's other hosts (staging) with analytics, indexnow and crawl.auth; replaces the list, kept when it matches.
 	Facts            []map[string]any `json:"facts,omitempty"`
@@ -569,24 +571,24 @@ type ApplyManifestInput struct {
 // is safe to run on every deploy. Takes what a repository declares about its
 // site (domain, framework, verification, tracker cadence, budget and its alert
 // share, domain sweep, deploy hook, analytics paths and partners, crawl
-// settings, default alerts and where they go, brief and brand terms, facts,
-// goals, funnels, sibling platforms (a Forumulate host, and with its org and a
-// token its signed publish webhook; Atlas, Cookie Munch, Watchtower, Hermetica
-// and Referalli by id), environments such as staging) and brings the client to
-// it through the existing tools, each with its own permission and checks. Each
-// part is compared with what is there first: a step is kept when it would
-// write nothing, ran when it changed something, would_run on a dry run. patch
-// is an RFC 6902 JSON Patch of what the run changed, or on a dry run would
-// change, against the live config, each path starting with its section
-// (/crawl/render, /budget/monthlyUsd, /goals/Signup); an empty patch on a dry
-// run means the live config matches the manifest, so CI can fail the build on
-// drift. Fields the manifest leaves out are left as they are. files (the
-// IndexNow key and Google verification file, which are public) come back on
-// every real run. env lists each environment variable to set: build (read at
-// build time), runtime and secrets, with public ids as values and secrets only
-// as a placeholder naming the tool that issues them. A new deploy hook's
-// secret is in its step's result only, once. A deployer key may run it with
-// dryRun only. Free.
+// settings, default alerts and where they go (Watchtower included), path
+// owners, brief and brand terms, facts, goals, funnels, sibling platforms (a
+// Forumulate host, and with its org and a token its signed publish webhook;
+// Atlas, Cookie Munch, Watchtower, Hermetica and Referalli by id),
+// environments such as staging) and brings the client to it through the
+// existing tools, each with its own permission and checks. Each part is
+// compared with what is there first: a step is kept when it would write
+// nothing, ran when it changed something, would_run on a dry run. patch is an
+// RFC 6902 JSON Patch of what the run changed, or on a dry run would change,
+// against the live config, each path starting with its section (/crawl/render,
+// /budget/monthlyUsd, /goals/Signup); an empty patch on a dry run means the
+// live config matches the manifest, so CI can fail the build on drift. Fields
+// the manifest leaves out are left as they are. files (the IndexNow key and
+// Google verification file, which are public) come back on every real run. env
+// lists each environment variable to set: build (read at build time), runtime
+// and secrets, with public ids as values and secrets only as a placeholder
+// naming the tool that issues them. A new deploy hook's secret is in its
+// step's result only, once. A deployer key may run it with dryRun only. Free.
 func (c *Client) ApplyManifest(ctx context.Context, in ApplyManifestInput) (json.RawMessage, error) {
 	return c.Call(ctx, "apply_manifest", in)
 }
@@ -1485,25 +1487,32 @@ type CreateAlertRuleInput struct {
 // project with POST /v1/projects/{prj}/events, alert_type error, warning or
 // info by severity, source seolyticize, aggregation_key the rule id, tags
 // kind:<kind> and client:<clientId>, and the detail and links in its text) or
-// hermetica (apiKey, hermeticaFrom and emailRecipients: the alert email sent
-// through the client's own Hermetica account with POST
-// /v1/transactional/send). The apiKey is stored sealed and never returned.
-// Webhooks must be https and public. With no channel and no destination, the
-// alert goes to the client's linked Watchtower project (link_watchtower), else
-// the agency owner's email, and deliveryNote says so; a deployment with no
-// email provider sends it through the client's own Hermetica when the client
-// has a hermetica rule, and otherwise refuses it as no_delivery_target; a
-// channel named without its field is refused as no_delivery_target. paidSource
-// (competitor-new-keywords and web-mentions only; off by default; needs spend
-// permission) also buys the signal from DataForSEO on every sweep: for
-// competitor-new-keywords, Labs ranked keywords each tracker competitor (up to
-// 5) newly ranks for at the tracker's market, not only tracked keywords; for
-// web-mentions, pages DataForSEO's content index first saw naming the brand,
-// off the client's own domains. The sweep is hourly but a purchase is reused
-// from the archive while fresh, so it buys at most once a week per competitor
-// (once a day for mentions); it is capped by the client's monthly budget, and
-// a failed or over-budget read falls back to the free signal. Quote it first
-// with estimate_cost. Answers 'tell me when rankings drop'.
+// hermetica (apiKey, a key from Hermetica preset atlas-transport bound to app
+// seolyticize, hermeticaFrom a verified sender, and emailRecipients: the alert
+// email sent through the client's own Hermetica account with POST
+// /v1/transactional/send-raw, tagged seolyticize, untracked, one idempotency
+// key per alert and recipient; the key is checked on save with GET /v1/me, a
+// refused key or one without messages:send is refused, and a workspace that
+// cannot send yet is saved with undeliverableBecause naming GET
+// /v1/readiness's fix; test_alert_rule sends it to
+// delivered@sandbox.hermeticor.test). The apiKey is stored sealed and never
+// returned. Webhooks must be https and public. With no channel and no
+// destination, the alert goes to the client's linked Watchtower project
+// (link_watchtower), else the agency owner's email, and deliveryNote says so;
+// a deployment with no email provider sends it through the client's own
+// Hermetica when the client has a hermetica rule, and otherwise refuses it as
+// no_delivery_target; a channel named without its field is refused as
+// no_delivery_target. paidSource (competitor-new-keywords and web-mentions
+// only; off by default; needs spend permission) also buys the signal from
+// DataForSEO on every sweep: for competitor-new-keywords, Labs ranked keywords
+// each tracker competitor (up to 5) newly ranks for at the tracker's market,
+// not only tracked keywords; for web-mentions, pages DataForSEO's content
+// index first saw naming the brand, off the client's own domains. The sweep is
+// hourly but a purchase is reused from the archive while fresh, so it buys at
+// most once a week per competitor (once a day for mentions); it is capped by
+// the client's monthly budget, and a failed or over-budget read falls back to
+// the free signal. Quote it first with estimate_cost. Answers 'tell me when
+// rankings drop'.
 func (c *Client) CreateAlertRule(ctx context.Context, in CreateAlertRuleInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_alert_rule", in)
 }
@@ -1643,14 +1652,14 @@ type CreateDeployHookInput struct {
 // pipeline's env file, which seolyticize-notify-deploy reads, with <secret>
 // where the secret goes: a secret is never repeated inside free text),
 // webhookUrl (the secret in the path, only for senders that cannot set a
-// header or sign, such as Netlify, Vercel, Cloudflare Pages and Forumulate's
-// deploy_hook kind; treat that whole URL as a secret, since tools print URLs;
-// it works for as long as the hook does, by design, and pathUrl: false leaves
-// it out of the answer) and howToCall for each platform. A client that already
-// has a hook is refused with hook_exists and nothing changes;
-// rotate_deploy_hook replaces the secret. With ifMissing: true an existing
-// hook is left alone and returned as {created: false} without a secret, so a
-// provisioning script can run it on every deploy safely. Free.
+// header or sign, such as Netlify, Vercel, Cloudflare Pages, Coolify's team
+// webhook and (deprecated) Forumulate's deploy_hook kind; treat that whole URL
+// as a secret, since tools print URLs; it works for as long as the hook does,
+// by design, and pathUrl: false leaves it out of the answer) and howToCall for
+// each platform. A client that already has a hook is refused with hook_exists
+// and nothing changes; rotate_deploy_hook replaces the secret. With ifMissing:
+// true an existing hook is left alone and returned as {created: false} without
+// a secret, so a provisioning script can run it on every deploy safely. Free.
 func (c *Client) CreateDeployHook(ctx context.Context, in CreateDeployHookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_deploy_hook", in)
 }
@@ -1832,33 +1841,35 @@ func (c *Client) CreateProject(ctx context.Context, in CreateProjectInput) (json
 
 // CreateRankTrackerInput is the input to create_rank_tracker.
 type CreateRankTrackerInput struct {
-	ClientID     string `json:"clientId"`
-	Name         string `json:"name"`
-	ProjectID    string `json:"projectId,omitempty"`
-	Domain       string `json:"domain,omitempty"`
-	Engine       string `json:"engine,omitempty"`
-	Device       string `json:"device,omitempty"`
-	Frequency    string `json:"frequency,omitempty"`
-	LocationCode *int64 `json:"locationCode,omitempty"` // A DataForSEO location: a country, or a region, county or city (find one with search_locations).
-	LanguageCode string `json:"languageCode,omitempty"`
-	RunHour      *int64 `json:"runHour,omitempty"` // The UTC hour scheduled runs happen at (default 3).
-	RunDay       *int64 `json:"runDay,omitempty"`  // Weekly: the weekday, 0 Sunday – 6 Saturday. Monthly: the day of the month, 1–28.
-	Depth        *int64 `json:"depth,omitempty"`   // Results read per keyword (default 100). Deeper costs more per check.
-	Match        string `json:"match,omitempty"`   // domain: the exact host; subdomains: it and every subdomain; prefix: only addresses under urlPrefix (a folder or one page).
-	URLPrefix    string `json:"urlPrefix,omitempty"`
+	ClientID          string `json:"clientId"`
+	Name              string `json:"name"`
+	ProjectID         string `json:"projectId,omitempty"`
+	Domain            string `json:"domain,omitempty"`
+	Engine            string `json:"engine,omitempty"`
+	Device            string `json:"device,omitempty"`
+	Frequency         string `json:"frequency,omitempty"`
+	LocationCode      *int64 `json:"locationCode,omitempty"` // A DataForSEO location: a country, or a region, county or city (find one with search_locations).
+	LanguageCode      string `json:"languageCode,omitempty"`
+	RunHour           *int64 `json:"runHour,omitempty"` // The UTC hour scheduled runs happen at (default 3).
+	RunDay            *int64 `json:"runDay,omitempty"`  // Weekly: the weekday, 0 Sunday – 6 Saturday. Monthly: the day of the month, 1–28.
+	Depth             *int64 `json:"depth,omitempty"`   // Results read per keyword (default 100). Deeper costs more per check.
+	Match             string `json:"match,omitempty"`   // domain: the exact host; subdomains: it and every subdomain; prefix: only addresses under urlPrefix (a folder or one page).
+	URLPrefix         string `json:"urlPrefix,omitempty"`
+	AllowWhileBlocked *bool  `json:"allowWhileBlocked,omitempty"` // Create it even while the agency's DataForSEO balance is empty (it then captures nothing until topped up). Without it, that call is refused as vendor_balance_emp
 }
 
 // CreateRankTracker calls create_rank_tracker: Create a rank tracker. Starts
-// tracking a client's positions on one engine, device and locale. warnings
-// says vendor_balance_empty when the agency's DataForSEO balance is at or
-// below zero, when the tracker captures nothing until it is topped up. Answers
-// 'track this client on Bing too' or 'track mobile separately'. Defaults to
-// the client's first project and site domain. Engine and locale cannot be
-// changed later — they are part of every keyword's identity — so a different
-// market is a new tracker. A locale can be a city, county or region, not only
-// a country: search_locations finds the code. Cadence daily, weekly, monthly
-// or manual, at a chosen UTC hour and day; depth 10–200; match the exact host,
-// its subdomains, or a URL prefix.
+// tracking a client's positions on one engine, device and locale. While the
+// agency's DataForSEO balance is at or below zero it is refused with code
+// vendor_balance_empty, since the tracker would capture nothing until topped
+// up; allowWhileBlocked: true creates it anyway, with that warning in
+// warnings. Answers 'track this client on Bing too' or 'track mobile
+// separately'. Defaults to the client's first project and site domain. Engine
+// and locale cannot be changed later — they are part of every keyword's
+// identity — so a different market is a new tracker. A locale can be a city,
+// county or region, not only a country: search_locations finds the code.
+// Cadence daily, weekly, monthly or manual, at a chosen UTC hour and day;
+// depth 10–200; match the exact host, its subdomains, or a URL prefix.
 func (c *Client) CreateRankTracker(ctx context.Context, in CreateRankTrackerInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_rank_tracker", in)
 }
@@ -2209,6 +2220,19 @@ type DescribeDatasetsInput struct {
 // each is kept. Answers 'what data is there to ask about'. Free.
 func (c *Client) DescribeDatasets(ctx context.Context, in DescribeDatasetsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "describe_datasets", in)
+}
+
+// DescribeToolInput is the input to describe_tool.
+type DescribeToolInput struct {
+	Name string `json:"name"`
+}
+
+// DescribeTool calls describe_tool: One tool's schema. One tool's description
+// and JSON input schema: the entry GET /api/v1/tools lists for it (also GET
+// /api/v1/tools/{name}), without reading the whole catalogue. Only tools this
+// key may call. Answers 'what arguments does onboard_site take'. Free.
+func (c *Client) DescribeTool(ctx context.Context, in DescribeToolInput) (json.RawMessage, error) {
+	return c.Call(ctx, "describe_tool", in)
 }
 
 // DisconnectAppInput is the input to disconnect_app.
@@ -4481,13 +4505,20 @@ type GetDeployHookInput struct {
 // sitemap), lastResult (led by the call's source and ref in brackets when it
 // sent them), how many sitemap pages it knows, url (the address to call; not
 // secret, the value of SEOLYTICIZE_DEPLOY_HOOK_URL), signing (hookSecret:
-// signed calls work; senderSecret: a sender's own secret is set) and
-// howToCall: anyPipeline, signed (the body signed with Seolyticize-Signature,
-// no secret in the URL), coolify (a git build's post-deployment command),
-// prebuiltImage (seolyticize-notify-deploy --wait-for from the deploy script),
-// githubActions, vercel, forumulate and knownPages. Every call belongs after
-// the new version serves; ref is free text. hookId is not secret. Never the
-// secret itself: a lost one is replaced with rotate_deploy_hook. Free.
+// signed calls work; senderSecret: a sender's own secret is set; warnings says
+// so while senderSecret is false, since a Forumulate webhook can then only be
+// the deprecated secret-in-URL kind) and howToCall: anyPipeline, signed (the
+// body signed with Seolyticize-Signature, no secret in the URL), coolify (a
+// git build's post-deployment command), coolifyWebhook (Coolify's team webhook
+// with ?source=coolify: each successful deployment of the client's site is a
+// deploy, no command), watchtower (a Watchtower webhook receiver on
+// deployment.created with ?source=watchtower), prebuiltImage
+// (seolyticize-notify-deploy --wait-for from the deploy script),
+// githubActions, vercel, forumulate (the one canonical, signed recipe:
+// link_content_platform with org and apiKey; the secret-in-URL ones marked
+// deprecated) and knownPages. Every call belongs after the new version serves;
+// ref is free text. hookId is not secret. Never the secret itself: a lost one
+// is replaced with rotate_deploy_hook. Free.
 func (c *Client) GetDeployHook(ctx context.Context, in GetDeployHookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_deploy_hook", in)
 }
@@ -5045,9 +5076,11 @@ type GetGoalReportInput struct {
 // Visits, converting visits, conversions, conversion rate and value for each
 // goal (default every goal), broken down by channel, landing page, source,
 // campaign, the AI assistant that referred the visit, or the Search Console
-// query cluster bringing people to the landing page. Answers 'which channel
-// brings sign-ups', 'what is organic search worth in conversions', 'do visits
-// from ChatGPT convert'. Free.
+// query cluster bringing people to the landing page. Conversions and value
+// joined to no visit (a server event sent without ip, ua or visit token) are
+// their own (unattributed) row. Answers 'which channel brings sign-ups', 'what
+// is organic search worth in conversions', 'do visits from ChatGPT convert'.
+// Free.
 func (c *Client) GetGoalReport(ctx context.Context, in GetGoalReportInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_goal_report", in)
 }
@@ -5834,7 +5867,13 @@ type GetNextStepsInput struct {
 // 'what is not connected for this client, and what does each missing piece
 // block'. missing lists the ids of every item not done. ready is true once the
 // required items are done (set up); health is degraded, with blocked naming
-// the items, while anything is blocked, even with ready true. The onboarding
+// each blocked item by its code when it has one (vendor_balance_empty, for
+// every client of an agency whose DataForSEO balance is empty) or else its id,
+// while anything is blocked, even with ready true. Each item has runnable
+// (run_next_steps may run its call unattended) and precondition (what it waits
+// for). ai_crawler_blocked and search_crawler_blocked name GPTBot, ClaudeBot,
+// PerplexityBot, Googlebot or Bingbot refused the home page and the layer that
+// refuses it (robots.txt, cdn, origin, challenge, app_shell). The onboarding
 // checklist with live status — done, todo, in progress, failed or blocked and
 // why — each with the exact tool and arguments to call next; then the optional
 // connections that unlock more tools (Bing Webmaster key, PageSpeed / Chrome
@@ -7016,8 +7055,11 @@ type GetSiteStatusInput struct {
 // syncing, the latest crawl, and coveredHosts: every host the client's pages
 // are served on (the site's domain, then content platforms linked with
 // link_content_platform), each with whether the analytics counts it, the
-// deploy hook sitemaps read on it and whether the crawl covers it. Answers 'is
-// this site set up and verified' and 'which hosts does Seolyticize watch'.
+// deploy hook sitemaps read on it and whether the crawl covers it; and
+// blocked: what stops data collection for the whole agency now
+// (vendor_balance_empty while its DataForSEO balance is at or below zero),
+// with blockedDetail. Answers 'is this site set up and verified' and 'which
+// hosts does Seolyticize watch'.
 func (c *Client) GetSiteStatus(ctx context.Context, in GetSiteStatusInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_site_status", in)
 }
@@ -7983,25 +8025,25 @@ type LinkContentPlatformInput struct {
 // /orgs/{orgId}/analytics-tags (or a site's or space's), which sends pageviews
 // with no script, gated as first-party measurement by the consent settings
 // (firstPartyAnalytics); robots.txt names the host's sitemap; and publishes
-// call the deploy hook one of three ways, as get_deploy_hook's
-// howToCall.forumulate spells out: (1, recommended) an ordinary signed
-// webhook, POST /orgs/{orgId}/webhooks {url: the hook's url, events:
-// [page.live, publish.completed]}, whose one-time signing secret goes to
-// set_deploy_hook_sender_secret, so no secret is in any URL; (2) Settings →
-// Analytics, PUT /orgs/{orgId}/seolyticize/deploy-hook {url: webhookUrl}, the
-// same webhook with a secret it never answers; (3) a webhook of kind
-// deploy_hook (a manifest's webhooks entry {kind: deploy_hook, url:
-// webhookUrl, events: [page.published]}; page.live and topic.published also
-// allowed, publish.completed not), an unsigned empty POST with
-// ?source=forumulate&ref=<event>, which get_deploy_hook's lastResult shows.
-// (2) and (3) carry no signature Seolyticize can check, so they need the
-// webhookUrl holding the secret. With org and apiKey (a Forumulate token with
-// the write scope, used for these calls only and never stored) and a deploy
-// hook in place, (1) is done here: the webhook is created with externalRef
-// seolyticize-deploy-<hookId> (so a repeat finds it), its secret stored as the
-// hook's sender secret (rotated when Forumulate does not show it again and
-// none is stored), and publishes reports connected, kept, no_deploy_hook or
-// failed with Forumulate's error. Safe to repeat. Free.
+// call the deploy hook. The one canonical, signed integration is this tool
+// with kind forumulate, org, apiKey and mounts auto: one call for the signed
+// webhook, the path owners, the partner paths, the per-mount sitemaps and the
+// site key on each mounted space. The secret-in-URL ways (Settings → Analytics
+// PUT /orgs/{orgId}/seolyticize/deploy-hook, and a webhook of kind deploy_hook
+// on page.published) still work and are deprecated; get_deploy_hook warns
+// while the hook has no sender secret. With org and apiKey (a Forumulate token
+// with the write scope, used for these calls only and never stored) and a
+// deploy hook in place, (1) is done here: the webhook is created with
+// externalRef seolyticize-deploy-<hookId> (so a repeat finds it), its secret
+// stored as the hook's sender secret (rotated when Forumulate does not show it
+// again and none is stored), and publishes reports connected, kept,
+// no_deploy_hook or failed with Forumulate's error. With org, apiKey and
+// mounts auto, the client's analytics site key is also set as the seolyticize
+// field of each mounted space (PATCH
+// /orgs/{orgId}/spaces/{spaceId}/analytics-tags, from Forumulate's API
+// reference; a space already holding it is left alone), so path-mode pages
+// count without a tag of their own; mounts.siteKey lists the spaces set, kept
+// and failed. Safe to repeat. Free.
 func (c *Client) LinkContentPlatform(ctx context.Context, in LinkContentPlatformInput) (json.RawMessage, error) {
 	return c.Call(ctx, "link_content_platform", in)
 }
@@ -8074,10 +8116,11 @@ type ListAlertRulesInput struct {
 // ListAlertRules calls list_alert_rules: List alert rules. What a client's
 // alerts watch for, at what threshold, and whether each is paused and can be
 // delivered (hasDeliveryTarget false: it fires into nothing,
-// undeliverableBecause says why, e.g. no address or no email provider on this
-// deployment; undeliverable lists those rules with the fix). Lists the rules;
-// list_recent_alerts lists what they fired. add_default_alerts adds the
-// starting four.
+// undeliverableBecause says why, e.g. no address, no email provider on this
+// deployment, or a hermetica rule whose Hermetica workspace has no verified
+// sender matching hermeticaFrom, asked live with the rule's key; undeliverable
+// lists those rules with the fix). Lists the rules; list_recent_alerts lists
+// what they fired. add_default_alerts adds the starting four.
 func (c *Client) ListAlertRules(ctx context.Context, in ListAlertRulesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "list_alert_rules", in)
 }
@@ -8888,15 +8931,16 @@ func (c *Client) NotifyGoogleIndexing(ctx context.Context, in NotifyGoogleIndexi
 
 // OnboardSiteInput is the input to onboard_site.
 type OnboardSiteInput struct {
-	Domain           string   `json:"domain"`
-	Name             string   `json:"name,omitempty"`
-	Framework        string   `json:"framework,omitempty"` // Where the tag and robots.txt go. nextjs: the @seolyticize/next component and app/robots.ts. astro, remix, sveltekit, nuxt, wordpress: the script tag in that fra
-	Keywords         []string `json:"keywords,omitempty"`
-	Verification     string   `json:"verification,omitempty"`     // file (a page at the site root, the default), meta (a tag in the <head>) or dns (a TXT record, which also covers every subdomain and protocol).
-	HealthKey        *bool    `json:"healthKey,omitempty"`        // Also make a read-only key pinned to this client that can spend nothing, for seolyticize doctor. It is shown once in healthKey.key; a later call keeps it and ret
-	TrackerFrequency string   `json:"trackerFrequency,omitempty"` // How often the client's rank tracker runs once it has keywords: weekly is the default for a new tracker. Applied to an existing client's trackers too. update_ran
-	FirstCrawl       string   `json:"firstCrawl,omitempty"`       // When the site's first crawl runs. afterVerify (the default for a new client): once verify_site is called, after the files are deployed, so the crawl sees the de
-	DryRun           *bool    `json:"dryRun,omitempty"`           // True to write nothing and get the plan: what it would create, whether the plan has room for the client (planAllows, planRefusal), what the site must serve and t
+	Domain            string   `json:"domain"`
+	Name              string   `json:"name,omitempty"`
+	Framework         string   `json:"framework,omitempty"` // Where the tag and robots.txt go. nextjs: the @seolyticize/next component and app/robots.ts. astro, remix, sveltekit, nuxt, wordpress: the script tag in that fra
+	Keywords          []string `json:"keywords,omitempty"`
+	Verification      string   `json:"verification,omitempty"`      // file (a page at the site root, the default), meta (a tag in the <head>) or dns (a TXT record, which also covers every subdomain and protocol).
+	HealthKey         *bool    `json:"healthKey,omitempty"`         // Also make a read-only key pinned to this client that can spend nothing, for seolyticize doctor. It is shown once in healthKey.key; a later call keeps it and ret
+	TrackerFrequency  string   `json:"trackerFrequency,omitempty"`  // How often the client's rank tracker runs once it has keywords: weekly is the default for a new tracker. Applied to an existing client's trackers too. update_ran
+	FirstCrawl        string   `json:"firstCrawl,omitempty"`        // When the site's first crawl runs. afterVerify (the default for a new client): once verify_site is called, after the files are deployed, so the crawl sees the de
+	AllowWhileBlocked *bool    `json:"allowWhileBlocked,omitempty"` // Make a new client's rank tracker even while the agency's DataForSEO balance is empty. Without it that step is skipped (skipped names it, code vendor_balance_emp
+	DryRun            *bool    `json:"dryRun,omitempty"`            // True to write nothing and get the plan: what it would create, whether the plan has room for the client (planAllows, planRefusal), what the site must serve and t
 }
 
 // OnboardSite calls onboard_site: Onboard a site in one call. Answers 'set
@@ -8909,8 +8953,11 @@ type OnboardSiteInput struct {
 // scheduledPaidWork: anything paid it leaves running on a schedule (nothing,
 // for a new client: its tracker runs only once it has keywords, weekly unless
 // trackerFrequency says otherwise, and the weekly domain sweep stays off until
-// set_domain_sweep). Deploy all of it, then call verify_site. No Google
-// sign-in or Search Console settings are needed at any point. Free.
+// set_domain_sweep). While the agency's DataForSEO balance is empty a new
+// client gets no tracker (skipped names the step, code vendor_balance_empty)
+// unless allowWhileBlocked is true; the rest is set up either way. Deploy all
+// of it, then call verify_site. No Google sign-in or Search Console settings
+// are needed at any point. Free.
 func (c *Client) OnboardSite(ctx context.Context, in OnboardSiteInput) (json.RawMessage, error) {
 	return c.Call(ctx, "onboard_site", in)
 }
@@ -9839,6 +9886,28 @@ type RunLocalGridScanInput struct {
 // over the limit. Answers 'scan our map-pack visibility now'.
 func (c *Client) RunLocalGridScan(ctx context.Context, in RunLocalGridScanInput) (json.RawMessage, error) {
 	return c.Call(ctx, "run_local_grid_scan", in)
+}
+
+// RunNextStepsInput is the input to run_next_steps.
+type RunNextStepsInput struct {
+	ClientID string `json:"clientId"`
+	DryRun   *bool  `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
+}
+
+// RunNextSteps calls run_next_steps: Run the next steps that need no person.
+// Answers 'the deploy is live, finish what you can'. Runs every get_next_steps
+// item with runnable: true (open items whose call is free, safe to repeat and
+// needs no value a person holds: verify_site, add_bing_site, verify_bing_site,
+// submit_sitemap, issue_indexnow_key, set_up_web_analytics,
+// add_default_alerts, redeliver_alert, start_crawl), one after another through
+// the same checks as a direct call, and reports each: ran with its result, or
+// failed with the error and its code. A call several items name runs once.
+// Items with runnable: false are left alone; their precondition says what they
+// wait for (a value only a person has, a paid or chosen setting, an action
+// outside Seolyticize). dryRun lists what would run and calls nothing. Then
+// call get_next_steps for what is left. Free.
+func (c *Client) RunNextSteps(ctx context.Context, in RunNextStepsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "run_next_steps", in)
 }
 
 // SaveAIVisibilitySetupInput is the input to save_ai_visibility_setup.
@@ -11553,13 +11622,15 @@ type VerifySiteInput struct {
 // manifest is live, checks and completes everything in one call: the IndexNow
 // key file, Google ownership (and then adds and connects the Search Console
 // property, with its sixteen months of history), whether analytics has
-// received its first event, that robots.txt and the sitemap answer, and starts
-// the first crawl. A sitemap gets 20 s, and after a timeout one more try of 60
-// s; one slower than 10 s, or that never answers, is code slow_sitemap
-// (optional when it answered, todo when not), with observed {url, elapsedMs,
-// timeoutMs, retried}. Returns a checklist where every item not done carries
-// the exact fix and the next call. Safe to call again; a deployer key may call
-// it. Free.
+// received its first event, that robots.txt and the sitemap answer, whether
+// Googlebot, Bingbot, GPTBot, ClaudeBot and PerplexityBot are served the home
+// page as a browser is (ai_crawler_blocked, search_crawler_blocked), and
+// starts the first crawl. A sitemap gets 20 s, and after a timeout one more
+// try of 60 s; one slower than 10 s, or that never answers, is code
+// slow_sitemap (optional when it answered, todo when not), with observed {url,
+// elapsedMs, timeoutMs, retried}. Returns a checklist where every item not
+// done carries the exact fix and the next call. Safe to call again; a deployer
+// key may call it. Free.
 func (c *Client) VerifySite(ctx context.Context, in VerifySiteInput) (json.RawMessage, error) {
 	return c.Call(ctx, "verify_site", in)
 }

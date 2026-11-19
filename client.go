@@ -28,7 +28,7 @@ import (
 const DefaultBaseURL = "https://seolyticize.com"
 
 // Version is this SDK's version, sent as the user agent.
-const Version = "0.5.5"
+const Version = "0.5.6"
 
 // maxPolls is how many times a call that answered 202 is collected before giving up: ten minutes at 5 s.
 const maxPolls = 120
@@ -173,6 +173,19 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte, tool 
 		response.Body.Close()
 		if readErr != nil {
 			return nil, readErr
+		}
+		// A refusal as data answers 402, 409 or 422 with ok:false: the same answer a 200 carried before.
+		if response.StatusCode >= 400 && response.StatusCode < 500 {
+			var refused struct {
+				OK   *bool           `json:"ok"`
+				Data json.RawMessage `json:"data"`
+			}
+			if json.Unmarshal(raw, &refused) == nil && refused.OK != nil && !*refused.OK {
+				if refused.Data != nil {
+					return refused.Data, nil
+				}
+				return raw, nil
+			}
 		}
 		if response.StatusCode == http.StatusAccepted || (response.StatusCode == http.StatusConflict && polls > 0) {
 			var pending struct {

@@ -56,6 +56,17 @@ func TestRefusalCarriesCodeNextAndRequestID(t *testing.T) {
 	}
 }
 
+func TestA4xxRefusalAsDataReadsLikeTheOld200(t *testing.T) {
+	c := fake(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"ok":false,"refused":"not-connected","data":{"refused":"not-connected"}}`))
+	})
+	out, err := c.Call(context.Background(), "get_next_steps", map[string]any{"clientId": "c"})
+	if err != nil || string(out) != `{"refused":"not-connected"}` {
+		t.Fatalf("got %s, %v", out, err)
+	}
+}
+
 func TestRateLimitIsRetriedButAWriteIsNotRetriedOnServerError(t *testing.T) {
 	var calls atomic.Int32
 	c := fake(t, func(w http.ResponseWriter, r *http.Request) {
