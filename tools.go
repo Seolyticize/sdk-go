@@ -9,7 +9,7 @@ import (
 )
 
 // ToolCount is how many tools this SDK was generated with.
-const ToolCount = 534
+const ToolCount = 537
 
 // readOnlyTools are retried on server errors; every other call is not, since
 // a write that failed with a 500 may already have happened.
@@ -342,8 +342,9 @@ type AddBingSiteInput struct {
 // site to Bing' and 'how do we verify the site in Bing'. Deploy one proof,
 // then call verify_bing_site. Safe to repeat: an added site is returned as it
 // is. added is true only when this call added the site; existed is true when
-// it was already in the account (onboard_site adds it when Bing is connected).
-// Free.
+// it was already in the account, and addedBy names the call that added it
+// (onboard_site adds it when Bing is connected; null when it was added outside
+// Seolyticize). Free.
 func (c *Client) AddBingSite(ctx context.Context, in AddBingSiteInput) (json.RawMessage, error) {
 	return c.Call(ctx, "add_bing_site", in)
 }
@@ -384,18 +385,20 @@ type AddDefaultAlertsInput struct {
 // (rank-drop 5). Each goes to the client's linked Watchtower project
 // (link_watchtower), else the agency owner's email, until changed with
 // update_alert_rule. On a deployment with no email provider, rules that would
-// go to the owner's email are made paused (pausedUntilDelivery) with next
-// naming the call that gives them a destination; passing a destination later
-// moves and resumes them. A kind the client already has a rule for is kept as
-// it is, so it is safe to repeat. channel with webhookUrl (slack, webhook,
-// discord), emailRecipients (email) or telegramChatId (telegram) sends them
-// there instead, and moves default rules still going only to the owner's email
-// (moved). uptimeMonitoredElsewhere: true leaves site-unreachable out (and
-// pauses an existing one) when another monitor owns uptime. include:
-// ["page-changes"] adds a fifth: own pages whose title, meta description, H1
-// or canonical changed, went noindex or 404. Pass clientId for one client, or
-// allClients: true for every live client the key may manage. Answers 'set up
-// the usual alerts'. Free.
+// go to the owner's email go through the client's own Hermetica instead when
+// it has a hermetica rule (its key, sender and recipients), and are otherwise
+// made paused (pausedUntilDelivery) with next naming the call that gives them
+// a destination; passing a destination later moves and resumes them. A kind
+// the client already has a rule for is kept as it is, so it is safe to repeat.
+// channel with webhookUrl (slack, webhook, discord), emailRecipients (email)
+// or telegramChatId (telegram) sends them there instead, and moves default
+// rules still going only to the owner's email (moved).
+// uptimeMonitoredElsewhere: true leaves site-unreachable out (and pauses an
+// existing one) when another monitor owns uptime. include: ["page-changes"]
+// adds a fifth: own pages whose title, meta description, H1 or canonical
+// changed, went noindex or 404. Pass clientId for one client, or allClients:
+// true for every live client the key may manage. Answers 'set up the usual
+// alerts'. Free.
 func (c *Client) AddDefaultAlerts(ctx context.Context, in AddDefaultAlertsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "add_default_alerts", in)
 }
@@ -550,10 +553,11 @@ type ApplyManifestInput struct {
 	DeployHook       *bool            `json:"deployHook,omitempty"`
 	HealthKey        *bool            `json:"healthKey,omitempty"` // Also make the read-only key for seolyticize doctor, as onboard_site does; shown once at the top of the answer as healthKey.key, and kept on later runs.
 	Brief            map[string]any   `json:"brief,omitempty"`
-	Analytics        map[string]any   `json:"analytics,omitempty"` // set_up_web_analytics arguments; each list replaces the one there.
-	Crawl            map[string]any   `json:"crawl,omitempty"`     // set_crawl_settings arguments without clientId, such as {render: "shells", stripParams: ["ref"]}; checked by that tool.
-	Alerts           map[string]any   `json:"alerts,omitempty"`    // add_default_alerts arguments: the default alerts, sent here.
-	Platforms        map[string]any   `json:"platforms,omitempty"` // Sibling platforms serving the client's pages. forumulate: link_content_platform for that host (its analytics hostname and its sitemap on the deploy hook); kept
+	Analytics        map[string]any   `json:"analytics,omitempty"`    // set_up_web_analytics arguments; each list replaces the one there.
+	Crawl            map[string]any   `json:"crawl,omitempty"`        // set_crawl_settings arguments without clientId, such as {render: "shells", stripParams: ["ref"]}; checked by that tool.
+	Alerts           map[string]any   `json:"alerts,omitempty"`       // add_default_alerts arguments: the default alerts, sent here.
+	Platforms        map[string]any   `json:"platforms,omitempty"`    // Sibling platforms serving the client's pages. forumulate: link_content_platform for that host (its analytics hostname and its sitemap on the deploy hook); kept
+	Environments     []map[string]any `json:"environments,omitempty"` // set_environments: the site's other hosts (staging) with analytics, indexnow and crawl.auth; replaces the list, kept when it matches.
 	Facts            []map[string]any `json:"facts,omitempty"`
 	Goals            []map[string]any `json:"goals,omitempty"`
 	Funnels          []map[string]any `json:"funnels,omitempty"`
@@ -566,19 +570,21 @@ type ApplyManifestInput struct {
 // site (domain, framework, verification, tracker cadence, budget and its alert
 // share, domain sweep, deploy hook, analytics paths and partners, crawl
 // settings, default alerts and where they go, brief and brand terms, facts,
-// goals, funnels, sibling platforms such as a Forumulate host) and brings the
-// client to it through the existing tools, each with its own permission and
-// checks. Each part is compared with what is there first: a step is kept when
-// it would write nothing, ran when it changed something, would_run on a dry
-// run. patch is an RFC 6902 JSON Patch of what the run changed, or on a dry
-// run would change, against the live config, each path starting with its
-// section (/crawl/render, /budget/monthlyUsd, /goals/Signup); an empty patch
-// on a dry run means the live config matches the manifest, so CI can fail the
-// build on drift. Fields the manifest leaves out are left as they are. files
-// (the IndexNow key and Google verification file, which are public) come back
-// on every real run. env lists each environment variable to set: build (read
-// at build time), runtime and secrets, with public ids as values and secrets
-// only as a placeholder naming the tool that issues them. A new deploy hook's
+// goals, funnels, sibling platforms (a Forumulate host, and with its org and a
+// token its signed publish webhook; Atlas, Cookie Munch, Watchtower, Hermetica
+// and Referalli by id), environments such as staging) and brings the client to
+// it through the existing tools, each with its own permission and checks. Each
+// part is compared with what is there first: a step is kept when it would
+// write nothing, ran when it changed something, would_run on a dry run. patch
+// is an RFC 6902 JSON Patch of what the run changed, or on a dry run would
+// change, against the live config, each path starting with its section
+// (/crawl/render, /budget/monthlyUsd, /goals/Signup); an empty patch on a dry
+// run means the live config matches the manifest, so CI can fail the build on
+// drift. Fields the manifest leaves out are left as they are. files (the
+// IndexNow key and Google verification file, which are public) come back on
+// every real run. env lists each environment variable to set: build (read at
+// build time), runtime and secrets, with public ids as values and secrets only
+// as a placeholder naming the tool that issues them. A new deploy hook's
 // secret is in its step's result only, once. A deployer key may run it with
 // dryRun only. Free.
 func (c *Client) ApplyManifest(ctx context.Context, in ApplyManifestInput) (json.RawMessage, error) {
@@ -1459,37 +1465,45 @@ type CreateAlertRuleInput struct {
 // far above that domain's own baseline, for the client or a tracked
 // competitor; web-traffic-drop percent of visits lost in the site's own web
 // analytics, the last 24 hours against the same hours of the same weekday over
-// the previous four weeks, silent below 20 visits a day on average (a broken
-// tag after a deploy pages within the hour). The watch kinds look back to
-// their last firing (a week at most) and stay silent until there is something
-// to compare. Channels: slack (webhookUrl, Slack's format; the default),
-// webhook (webhookUrl, plain JSON), discord (webhookUrl, the channel's Discord
-// webhook as Discord shows it), email (emailRecipients, up to ten) telegram
-// (telegramChatId, posted by botToken — the customer's own bot, stored sealed
-// — or else the agency's bot from Settings), watchtower (apiKey, a
-// service-account wta_ key with events:write, and watchtowerProjectId: posts
-// an event to that Watchtower project with POST /v1/projects/{prj}/events,
-// alert_type error, warning or info by severity, source seolyticize,
-// aggregation_key the rule id, tags kind:<kind> and client:<clientId>, and the
-// detail and links in its text) or hermetica (apiKey, hermeticaFrom and
-// emailRecipients: the alert email sent through the client's own Hermetica
-// account with POST /v1/transactional/send). The apiKey is stored sealed and
-// never returned. Webhooks must be https and public. With no channel and no
-// destination, the alert goes to the client's linked Watchtower project
-// (link_watchtower), else the agency owner's email, and deliveryNote says so;
-// a deployment with no email provider refuses it as no_delivery_target
-// instead; a channel named without its field is refused as no_delivery_target.
-// paidSource (competitor-new-keywords and web-mentions only; off by default;
-// needs spend permission) also buys the signal from DataForSEO on every sweep:
-// for competitor-new-keywords, Labs ranked keywords each tracker competitor
-// (up to 5) newly ranks for at the tracker's market, not only tracked
-// keywords; for web-mentions, pages DataForSEO's content index first saw
-// naming the brand, off the client's own domains. The sweep is hourly but a
-// purchase is reused from the archive while fresh, so it buys at most once a
-// week per competitor (once a day for mentions); it is capped by the client's
-// monthly budget, and a failed or over-budget read falls back to the free
-// signal. Quote it first with estimate_cost. Answers 'tell me when rankings
-// drop'.
+// the previous four weeks, for the site and for each of its five busiest hosts
+// and ten busiest pages against their own baselines, silent below 20 visits a
+// day on average (a broken tag after a deploy pages within the hour, and one
+// host or page losing its visits while the total holds is named);
+// crawler-access-changed crawlers and assistants (GPTBot, Googlebot, ClaudeBot
+// and the rest get_agent_access_matrix asks as) whose answer for the home page
+// changed since last week (status, title, H1, canonical, or words or bytes
+// under half) and no longer matches what a browser gets, checked weekly, the
+// first week a baseline (an app shell served to GPTBot, a CDN rule blocking an
+// assistant). The watch kinds look back to their last firing (a week at most)
+// and stay silent until there is something to compare. Channels: slack
+// (webhookUrl, Slack's format; the default), webhook (webhookUrl, plain JSON),
+// discord (webhookUrl, the channel's Discord webhook as Discord shows it),
+// email (emailRecipients, up to ten) telegram (telegramChatId, posted by
+// botToken — the customer's own bot, stored sealed — or else the agency's bot
+// from Settings), watchtower (apiKey, a service-account wta_ key with
+// events:write, and watchtowerProjectId: posts an event to that Watchtower
+// project with POST /v1/projects/{prj}/events, alert_type error, warning or
+// info by severity, source seolyticize, aggregation_key the rule id, tags
+// kind:<kind> and client:<clientId>, and the detail and links in its text) or
+// hermetica (apiKey, hermeticaFrom and emailRecipients: the alert email sent
+// through the client's own Hermetica account with POST
+// /v1/transactional/send). The apiKey is stored sealed and never returned.
+// Webhooks must be https and public. With no channel and no destination, the
+// alert goes to the client's linked Watchtower project (link_watchtower), else
+// the agency owner's email, and deliveryNote says so; a deployment with no
+// email provider sends it through the client's own Hermetica when the client
+// has a hermetica rule, and otherwise refuses it as no_delivery_target; a
+// channel named without its field is refused as no_delivery_target. paidSource
+// (competitor-new-keywords and web-mentions only; off by default; needs spend
+// permission) also buys the signal from DataForSEO on every sweep: for
+// competitor-new-keywords, Labs ranked keywords each tracker competitor (up to
+// 5) newly ranks for at the tracker's market, not only tracked keywords; for
+// web-mentions, pages DataForSEO's content index first saw naming the brand,
+// off the client's own domains. The sweep is hourly but a purchase is reused
+// from the archive while fresh, so it buys at most once a week per competitor
+// (once a day for mentions); it is capped by the client's monthly budget, and
+// a failed or over-budget read falls back to the free signal. Quote it first
+// with estimate_cost. Answers 'tell me when rankings drop'.
 func (c *Client) CreateAlertRule(ctx context.Context, in CreateAlertRuleInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_alert_rule", in)
 }
@@ -1653,23 +1667,26 @@ type CreateFunnelInput struct {
 // CreateFunnel calls create_funnel: Define a funnel. Defines a funnel: 2 to 8
 // steps (a page reached or an event sent) a visit should pass through in order
 // — landing page, product, cart, thank-you. Measured within one visit, because
-// the cookieless visitor id resets daily. Pageview and event steps mix in any
-// order; each step must happen after the one before it in the visit. Labels
-// are optional and need not be unique (the report names a step by its label,
-// else its match). Answers 'how many who see pricing go on to sign up'. Free.
+// the cookieless visitor id resets daily; get_funnel_report with acrossVisits
+// measures it across a signed-in user's visits instead, where the site sends
+// uid. Pageview and event steps mix in any order; each step must happen after
+// the one before it in the visit. Labels are optional and need not be unique
+// (the report names a step by its label, else its match). Answers 'how many
+// who see pricing go on to sign up'. Free.
 func (c *Client) CreateFunnel(ctx context.Context, in CreateFunnelInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_funnel", in)
 }
 
 // CreateGoalInput is the input to create_goal.
 type CreateGoalInput struct {
-	ClientID   string `json:"clientId"`
-	Name       string `json:"name"`
-	Kind       string `json:"kind"`
-	Match      string `json:"match"` // A path for a pageview ("/thanks", "/signup/*"; * matches anything) or an event name.
-	ValueMinor *int64 `json:"valueMinor,omitempty"`
-	UpsertBy   string `json:"upsertBy,omitempty"` // With "name": a goal of that name already defined the same way is returned as it is (created: false), and one defined differently is replaced, so a provisioning
-	DryRun     *bool  `json:"dryRun,omitempty"`   // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
+	ClientID     string   `json:"clientId"`
+	Name         string   `json:"name"`
+	Kind         string   `json:"kind"`
+	Match        string   `json:"match"` // A path for a pageview ("/thanks", "/signup/*"; * matches anything) or an event name.
+	ValueMinor   *int64   `json:"valueMinor,omitempty"`
+	AllowedProps []string `json:"allowedProps,omitempty"` // An event goal only: the custom props (p) kept on this event, ["plan", "value"]. Any other prop on it is dropped before it is stored and the last one dropped sho
+	UpsertBy     string   `json:"upsertBy,omitempty"`     // With "name": a goal of that name already defined the same way is returned as it is (created: false), and one defined differently is replaced, so a provisioning
+	DryRun       *bool    `json:"dryRun,omitempty"`       // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
 }
 
 // CreateGoal calls create_goal: Define a conversion goal. Defines a goal for
@@ -1959,6 +1976,7 @@ type CreateWebhookInput struct {
 	ClientID string   `json:"clientId,omitempty"`
 	URL      string   `json:"url"`
 	Events   []string `json:"events"`
+	Owner    string   `json:"owner,omitempty"` // A path owner: only events whose byOwner names it.
 }
 
 // CreateWebhook calls create_webhook: Subscribe a URL to events. Sends events
@@ -1972,8 +1990,9 @@ type CreateWebhookInput struct {
 // backlink.new, backlink.lost, issue.new_critical, ai.citation.gained,
 // ai.citation.lost, competitor.page.new, budget.threshold, alert.fired,
 // vendor.balance_low, vendor.balance_empty, deploy_hook.processed,
-// processor.updated. deploy_hook.processed fires on each deploy hook run with
-// what it read, changed and submitted. vendor.balance_low (at
+// processor.updated, audit.changed, verify.item_changed,
+// analytics.first_event. deploy_hook.processed fires on each deploy hook run
+// with what it read, changed and submitted. vendor.balance_low (at
 // set_vendor_balance_alert's threshold, default $5) and vendor.balance_empty
 // fire at most once a week while the balance stays low, not once per crossing,
 // and reach client-scoped webhooks too; vendor.balance_empty fires again, once
@@ -1981,9 +2000,17 @@ type CreateWebhookInput struct {
 // processor.updated fires once per new version of /.well-known/processor.json
 // (retention, sub-processors) with {version, updated, url}, to webhooks
 // created before that version and to client-scoped ones too, so a privacy
-// notice or consent manager can refresh. clientId limits it to one client;
-// null is every client. The secret is in the response once. Answers 'tell my
-// system when a crawl finishes'. Free.
+// notice or consent manager can refresh. audit.changed fires on every write
+// recorded on the audit trail (list_audit_events), with {invocationId, tool,
+// actor, surface, changes}; verify.item_changed when a verify_site checklist
+// item changes status between runs, with {itemId, title, from, to, code,
+// ready}; analytics.first_event once, when a site's analytics records its
+// first event, with {siteId, at}. clientId limits it to one client; null is
+// every client. owner (a path owner from set_path_owners, such as Forumulate)
+// sends only events whose data.byOwner names it, today issue.new_critical, so
+// a partner's regressions reach the partner and nobody else's do. The secret
+// is in the response once. Answers 'tell my system when a crawl finishes'.
+// Free.
 func (c *Client) CreateWebhook(ctx context.Context, in CreateWebhookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_webhook", in)
 }
@@ -2761,6 +2788,22 @@ type ForecastSearchClicksInput struct {
 // quarter' and 'what is the striking-distance work worth'. Free.
 func (c *Client) ForecastSearchClicks(ctx context.Context, in ForecastSearchClicksInput) (json.RawMessage, error) {
 	return c.Call(ctx, "forecast_search_clicks", in)
+}
+
+// ForgetUserInput is the input to forget_user.
+type ForgetUserInput struct {
+	ClientID string `json:"clientId"`
+	Uid      string `json:"uid"` // The uid exactly as the site sent it to /api/collect.
+}
+
+// ForgetUser calls forget_user: Erase one user's analytics. Deletes every
+// analytics event carrying this uid (the site's hashed user id sent to
+// /api/collect), and the rest of each visit that carried it, pages read before
+// signing in included. Answers a data subject's erasure request. Not
+// reversible; removal completes within minutes. Safe to repeat: a uid with
+// nothing left answers removed 0. Free.
+func (c *Client) ForgetUser(ctx context.Context, in ForgetUserInput) (json.RawMessage, error) {
+	return c.Call(ctx, "forget_user", in)
 }
 
 // GenerateHreflangInput is the input to generate_hreflang.
@@ -4284,13 +4327,14 @@ func (c *Client) GetContentGroups(ctx context.Context, in GetContentGroupsInput)
 
 // GetConversionsInput is the input to get_conversions.
 type GetConversionsInput struct {
-	ClientID string   `json:"clientId"`
-	Source   string   `json:"source,omitempty"`
-	By       string   `json:"by,omitempty"`
-	Channel  string   `json:"channel,omitempty"`
-	Goals    []string `json:"goals,omitempty"`
-	Days     *int64   `json:"days,omitempty"`
-	Limit    *int64   `json:"limit,omitempty"`
+	ClientID     string   `json:"clientId"`
+	Source       string   `json:"source,omitempty"`
+	By           string   `json:"by,omitempty"`           // event_source: the last p.source the visit's events named — chatly for a visit that talked to the Chatly widget, atlas for an Atlas sign-up — or (none).
+	AcrossVisits *bool    `json:"acrossVisits,omitempty"` // web_analytics only: count every visit in the range of one signed-in user (the uid the site sends, with consent) as one, so a sign-up in a later visit is credite
+	Channel      string   `json:"channel,omitempty"`
+	Goals        []string `json:"goals,omitempty"`
+	Days         *int64   `json:"days,omitempty"`
+	Limit        *int64   `json:"limit,omitempty"`
 }
 
 // GetConversions calls get_conversions: Conversions by landing page and
@@ -4733,11 +4777,12 @@ func (c *Client) GetFreshnessQueue(ctx context.Context, in GetFreshnessQueueInpu
 
 // GetFunnelReportInput is the input to get_funnel_report.
 type GetFunnelReportInput struct {
-	ClientID string `json:"clientId"`
-	FunnelID string `json:"funnelId"`
-	By       string `json:"by,omitempty"` // channel (AI assistants, organic search, paid, social, email, referral, direct), landing_page, source, campaign, ai_referrer (which assistant sent the visit), qu
-	Days     *int64 `json:"days,omitempty"`
-	Limit    *int64 `json:"limit,omitempty"`
+	ClientID     string `json:"clientId"`
+	FunnelID     string `json:"funnelId"`
+	By           string `json:"by,omitempty"` // channel (AI assistants, organic search, paid, social, email, referral, direct), landing_page, source, campaign, ai_referrer (which assistant sent the visit), qu
+	Days         *int64 `json:"days,omitempty"`
+	Limit        *int64 `json:"limit,omitempty"`
+	AcrossVisits *bool  `json:"acrossVisits,omitempty"` // Count every visit of one signed-in user (the uid the site sends to /api/collect, with consent) as one journey, steps up to 30 days apart, credited to its first
 }
 
 // GetFunnelReport calls get_funnel_report: Funnel steps and drop-off. How many
@@ -7084,9 +7129,13 @@ type GetTemplateReportInput struct {
 // neither ETag nor Last-Modified. byOwner totals pages, issues and performance
 // per owner, null being the client's own pages, so a partner's numbers can be
 // sent to the partner. Pairs with set_crawl_settings sample.perTemplate, which
-// crawls N pages of each template. Field data (Chrome UX Report) is per URL in
-// get_vitals_history. Answers 'which template is broken', 'which listings
-// sold' and 'how fast are Forumulate's pages'. Free.
+// crawls N pages of each template. fieldData, on each template and owner, is
+// Chrome UX Report field data (phone) over the pages that have a URL-level
+// reading: how many, how many pass Core Web Vitals, and the median of their
+// LCP, INP and CLS p75s; null when none has one (an audit's performance sample
+// and page_vitals record them; get_vitals_history has the origin's trend).
+// Answers 'which template is broken', 'which listings sold' and 'how fast are
+// Forumulate's pages'. Free.
 func (c *Client) GetTemplateReport(ctx context.Context, in GetTemplateReportInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_template_report", in)
 }
@@ -7806,8 +7855,12 @@ type IssueServerCollectKeyInput struct {
 // (ChatGPT-User, Claude-User, Perplexity-User) that never run the browser tag.
 // Shown once; issuing another revokes the last, at once or, with graceHours,
 // once previousKeyExpiresAt passes, so a rotation never drops events while the
-// new key rolls out. Answers 'track visits from our server', 'rotate the
-// collect key' and 'count AI agents reading our pages'. Free.
+// new key rolls out. Also returns proxy: the X-Seolyticize-Proxy header value
+// a first-party proxy (a.js with data-api="/s/e" on the site's own domain)
+// sends so its forwarded X-Forwarded-For and X-Seolyticize-Country are
+// believed; it rotates with the key. Answers 'track visits from our server',
+// 'rotate the collect key', 'proxy the tag through our own domain' and 'count
+// AI agents reading our pages'. Free.
 func (c *Client) IssueServerCollectKey(ctx context.Context, in IssueServerCollectKeyInput) (json.RawMessage, error) {
 	return c.Call(ctx, "issue_server_collect_key", in)
 }
@@ -7890,8 +7943,11 @@ func (c *Client) KeywordTrafficPotential(ctx context.Context, in KeywordTrafficP
 type LinkContentPlatformInput struct {
 	ClientID   string `json:"clientId"`
 	Kind       string `json:"kind"`                 // forumulate for a Forumulate site; other for any CMS or docs host.
-	Host       string `json:"host"`                 // The bare host the pages are served on: formflow.forumulate.com.
+	Host       string `json:"host,omitempty"`       // The bare host the pages are served on: formflow.forumulate.com. Defaults to the client's domain.
 	SitemapURL string `json:"sitemapUrl,omitempty"` // The host's sitemap; found from its robots.txt or /sitemap.xml when left out.
+	Org        string `json:"org,omitempty"`        // forumulate: the Forumulate organization: its uuid (with mounts auto, only its mounts on the host are linked), or its slug with apiKey.
+	Mounts     string `json:"mounts,omitempty"`     // auto (kind forumulate): link every mount Forumulate serves on the host, from its public mount list.
+	APIKey     string `json:"apiKey,omitempty"`     // forumulate: a Forumulate token with the write scope, used once to create the signed webhook and never stored.
 }
 
 // LinkContentPlatform calls link_content_platform: Link a content platform's
@@ -7907,10 +7963,23 @@ type LinkContentPlatformInput struct {
 // under notSentToIndexNow with that reason (Forumulate pings IndexNow itself
 // for any of its spaces, docs and help included, once publishPings.indexNow is
 // on there). Search engines still read the host's sitemap. get_site_status
-// lists it under coveredHosts and get_next_steps under content_platform. The
-// site crawl does not follow it: a crawl stays on the client's own domain. On
-// the Forumulate side (from its public guides): set the site key from
-// get_web_analytics_setup as the seolyticize field of PUT
+// lists it under coveredHosts and get_next_steps under content_platform.
+// Discovery without sitemapUrl is bounded: robots.txt, then at most 10
+// sitemaps (only those under the partner's mounts when it has any; an index's
+// children are not walked), 6 s each and 12 s in all, so the call answers well
+// inside 25 s; like any call still running at 25 s it would answer 202 {jobId,
+// idempotencyKey}, collected by POSTing the same body with that
+// Idempotency-Key. mounts: auto (kind forumulate) reads the host's mounts from
+// Forumulate's public GET /api/public/domains/resolve?host= (at most 20, each
+// resolved once with &path=, 6 s each, 12 s in all; with org, only that
+// Forumulate org's; a mount Forumulate redirects is skipped), then sets in one
+// place: the forumulate partner paths (/docs and /docs/* per mount), a path
+// owner Forumulate for each mount nobody owns yet, and each mount's
+// <mount>/sitemap.xml that answers on the deploy hook; the answer's mounts
+// lists them, what was skipped and why, and changed. host defaults to the
+// client's domain. The site crawl does not follow it: a crawl stays on the
+// client's own domain. On the Forumulate side (from its public guides): set
+// the site key from get_web_analytics_setup as the seolyticize field of PUT
 // /orgs/{orgId}/analytics-tags (or a site's or space's), which sends pageviews
 // with no script, gated as first-party measurement by the consent settings
 // (firstPartyAnalytics); robots.txt names the host's sitemap; and publishes
@@ -7926,9 +7995,40 @@ type LinkContentPlatformInput struct {
 // allowed, publish.completed not), an unsigned empty POST with
 // ?source=forumulate&ref=<event>, which get_deploy_hook's lastResult shows.
 // (2) and (3) carry no signature Seolyticize can check, so they need the
-// webhookUrl holding the secret. Safe to repeat. Free.
+// webhookUrl holding the secret. With org and apiKey (a Forumulate token with
+// the write scope, used for these calls only and never stored) and a deploy
+// hook in place, (1) is done here: the webhook is created with externalRef
+// seolyticize-deploy-<hookId> (so a repeat finds it), its secret stored as the
+// hook's sender secret (rotated when Forumulate does not show it again and
+// none is stored), and publishes reports connected, kept, no_deploy_hook or
+// failed with Forumulate's error. Safe to repeat. Free.
 func (c *Client) LinkContentPlatform(ctx context.Context, in LinkContentPlatformInput) (json.RawMessage, error) {
 	return c.Call(ctx, "link_content_platform", in)
+}
+
+// LinkSiblingPlatformsInput is the input to link_sibling_platforms.
+type LinkSiblingPlatformsInput struct {
+	ClientID    string         `json:"clientId"`
+	Atlas       map[string]any `json:"atlas,omitempty"`
+	CookieMunch map[string]any `json:"cookieMunch,omitempty"`
+	Watchtower  map[string]any `json:"watchtower,omitempty"`
+	Hermetica   map[string]any `json:"hermetica,omitempty"`
+	Referalli   map[string]any `json:"referalli,omitempty"`
+	DryRun      *bool          `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
+}
+
+// LinkSiblingPlatforms calls link_sibling_platforms: Link the client's Atlas,
+// Cookie Munch, Watchtower, Hermetica and Referalli. Records in one call which
+// sibling products the client's site runs on: atlas {clientId} (its Atlas OIDC
+// client id), cookieMunch {org}, watchtower {projectId, apiKey} (through
+// link_watchtower: alerts go there and it owns uptime; apiKey only when the
+// project is not linked already), hermetica {sender} (the verified sender
+// address) and referalli {programId}. A product left out is kept, null unlinks
+// it. Ids only: no other secret is taken or stored. verify_site lists what is
+// linked. dryRun: true writes nothing and answers the same. Answers 'connect
+// this client to our other products'. Free.
+func (c *Client) LinkSiblingPlatforms(ctx context.Context, in LinkSiblingPlatformsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "link_sibling_platforms", in)
 }
 
 // LinkWatchtowerInput is the input to link_watchtower.
@@ -10433,6 +10533,31 @@ func (c *Client) SetDomainSweep(ctx context.Context, in SetDomainSweepInput) (js
 	return c.Call(ctx, "set_domain_sweep", in)
 }
 
+// SetEnvironmentsInput is the input to set_environments.
+type SetEnvironmentsInput struct {
+	ClientID     string           `json:"clientId"`
+	Environments []map[string]any `json:"environments"`
+	DryRun       *bool            `json:"dryRun,omitempty"` // True to do nothing and get back exactly what the call would do: the rows it would write, the addresses it would submit, the emails it would send.
+}
+
+// SetEnvironments calls set_environments: Name the site's other hosts, such as
+// staging. Replaces the client's environments: hosts of the same site other
+// than production, such as {host: "staging.example.com", analytics: false,
+// crawl: {auth: "basic"}, indexnow: false}. analytics: false drops events from
+// that host (answered 202 with X-Seolyticize-Dropped: environment, not
+// refused), even when it is among the analytics hostnames; a collecting one
+// (true, the default) must also be in set_up_web_analytics hostnames.
+// indexnow: false keeps its pages out of every IndexNow submission (refused
+// with the reason). crawl.auth names which set_crawl_auth credentials a crawl
+// sends to that host (basic, all, or none, the default); once any environment
+// names credentials, only environment hosts get them, so production never sees
+// a staging password. Credentials never leave the client's domain. An empty
+// list clears them. dryRun: true writes nothing and answers the same. Answers
+// 'staging should not count in analytics'. Free.
+func (c *Client) SetEnvironments(ctx context.Context, in SetEnvironmentsInput) (json.RawMessage, error) {
+	return c.Call(ctx, "set_environments", in)
+}
+
 // SetKeywordNotesInput is the input to set_keyword_notes.
 type SetKeywordNotesInput struct {
 	ListID string           `json:"listId"`
@@ -10508,8 +10633,13 @@ type SetPathOwnersInput struct {
 // owners and the changes: added, updated (with what it was), removed and kept.
 // dryRun: true saves nothing and answers the same, to check a change first. A
 // URL belongs to the longest prefix it falls under, on segment boundaries
-// (/docs covers /docs/x, not /docsearch); / is the catch-all. Then
-// get_audit_summary and list_issue_pages split issues by owner,
+// (/docs covers /docs/x, not /docsearch); / is the catch-all. crawlShare caps
+// the owner's share of a crawl's page budget (maxPages): of the pages a crawl
+// seeds from the sitemap, at most that percent go to the owner's paths (pages
+// reached later by links are not counted against it). Route the owner's issues
+// with create_webhook {owner}, which receives only events whose byOwner names
+// it (issue.new_critical), or read list_issue_pages, which carries each page's
+// owner. Then get_audit_summary and list_issue_pages split issues by owner,
 // create_tasks_from_audit puts the owner on each task, and the digest groups
 // its fixes by owner. Answers 'the docs team owns /docs, send those fixes to
 // them'. Free.
@@ -10545,6 +10675,7 @@ type SetUpWebAnalyticsInput struct {
 	PathTemplates      []string         `json:"pathTemplates,omitempty"`      // Paths stored under a template when they fit, so names and ids in a path are never stored and their pages count together: ["/:username/:slug"] stores /ada/intro-
 	Partners           []map[string]any `json:"partners,omitempty"`           // Third parties serving pages on this site (a docs, blog or forum host) under the same site key. Their events send p: {source: "<name>"}, are kept only on their p
 	RespectRobots      *bool            `json:"respectRobots,omitempty"`      // True to drop pageviews on paths the site's robots.txt disallows for "*" (X-Seolyticize-Dropped: robots_disallowed); a custom event there is kept without its pat
+	Currency           string           `json:"currency,omitempty"`           // The ISO 4217 currency p.value is reported in (USD, EUR, JPY). An event whose p.currency differs is refused with 422 rejected_currency and counted in rejectedCur
 }
 
 // SetUpWebAnalytics calls set_up_web_analytics: Set up web analytics. Creates
@@ -11423,9 +11554,12 @@ type VerifySiteInput struct {
 // key file, Google ownership (and then adds and connects the Search Console
 // property, with its sixteen months of history), whether analytics has
 // received its first event, that robots.txt and the sitemap answer, and starts
-// the first crawl. Returns a checklist where every item not done carries the
-// exact fix and the next call. Safe to call again; a deployer key may call it.
-// Free.
+// the first crawl. A sitemap gets 20 s, and after a timeout one more try of 60
+// s; one slower than 10 s, or that never answers, is code slow_sitemap
+// (optional when it answered, todo when not), with observed {url, elapsedMs,
+// timeoutMs, retried}. Returns a checklist where every item not done carries
+// the exact fix and the next call. Safe to call again; a deployer key may call
+// it. Free.
 func (c *Client) VerifySite(ctx context.Context, in VerifySiteInput) (json.RawMessage, error) {
 	return c.Call(ctx, "verify_site", in)
 }

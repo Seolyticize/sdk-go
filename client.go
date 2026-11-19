@@ -28,7 +28,7 @@ import (
 const DefaultBaseURL = "https://seolyticize.com"
 
 // Version is this SDK's version, sent as the user agent.
-const Version = "0.5.4"
+const Version = "0.5.5"
 
 // maxPolls is how many times a call that answered 202 is collected before giving up: ten minutes at 5 s.
 const maxPolls = 120
