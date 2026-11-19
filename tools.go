@@ -619,7 +619,7 @@ type AssessAIVisibilitySentimentInput struct {
 	MaxAnswers    *int64 `json:"maxAnswers,omitempty"`
 	Rejudge       *bool  `json:"rejudge,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // AssessAIVisibilitySentiment calls assess_ai_visibility_sentiment: Judge
@@ -736,13 +736,16 @@ type BootstrapKeywordsInput struct {
 }
 
 // BootstrapKeywords calls bootstrap_keywords: Free keyword ideas for a new
-// site. Keyword ideas that cost nothing, for a site too new for Search Console
-// rows and an agency with no vendor credit: Google autocomplete suggestions
-// and questions around each seed (default: the site's name), and the page
-// names in competitors' sitemaps (competitorDomains). Each idea has its source
-// and what it came from; there are no volumes, because none of these sources
-// publishes one — add the best to a rank tracker, or price them later with
-// get_keyword_metrics. Answers 'what should a brand-new site target'. Free.
+// site. Keyword ideas that cost nothing, for an agency with no vendor credit:
+// the client's own Search Console queries from the last 90 days (source
+// search_console, first), Google autocomplete suggestions and questions around
+// each seed (default: the site's name), and the page names in competitors'
+// sitemaps (competitorDomains). Each idea has its source and what it came
+// from; there are no volumes, because none of these sources publishes one —
+// add the best to a rank tracker, or price them later with
+// get_keyword_metrics. A source that fails does not fail the call: the answer
+// has degraded: true and missing names each source lost and why. Answers 'what
+// should a brand-new site target'. Free.
 func (c *Client) BootstrapKeywords(ctx context.Context, in BootstrapKeywordsInput) (json.RawMessage, error) {
 	return c.Call(ctx, "bootstrap_keywords", in)
 }
@@ -758,7 +761,7 @@ type BuildComparisonPageInput struct {
 	Demand        *bool            `json:"demand,omitempty"`
 	Instructions  string           `json:"instructions,omitempty"`
 	MaxCostMicros *int64           `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool            `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool            `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // BuildComparisonPage calls build_comparison_page: Build a comparison page.
@@ -800,7 +803,7 @@ type BuildContentBriefInput struct {
 	LocationCode    *int64   `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom, 2724 Spain). Default: the client's project.
 	LanguageCode    string   `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
 	MaxCostMicros   *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun          *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun          *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // BuildContentBrief calls build_content_brief: Build a content brief. A
@@ -885,7 +888,7 @@ type CheckAIBrandAccuracyInput struct {
 	Question      string   `json:"question,omitempty"`
 	Platforms     []string `json:"platforms,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // CheckAIBrandAccuracy calls check_ai_brand_accuracy: Do assistants describe
@@ -985,7 +988,7 @@ type CheckNapConsistencyInput struct {
 	Directories         *bool    `json:"directories,omitempty"`
 	IndustryDirectories []string `json:"industryDirectories,omitempty"` // Extra directory domains for the trade, e.g. avvo.com, healthgrades.com. Null searches the trade's own directories, detected from the listing's categories and th
 	MaxCostMicros       *int64   `json:"maxCostMicros,omitempty"`       // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun              *bool    `json:"dryRun,omitempty"`              // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun              *bool    `json:"dryRun,omitempty"`              // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // CheckNapConsistency calls check_nap_consistency: Do the site and the Google
@@ -1056,7 +1059,7 @@ type CheckShoppingSerpInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"`
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // CheckShoppingSerp calls check_shopping_serp: Queue Google Shopping results
@@ -1123,7 +1126,7 @@ type ClusterKeywordsInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"`  // Default: the client's project.
 	LanguageCode  string   `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ClusterKeywords calls cluster_keywords: Group keywords into topics. Groups
@@ -1968,15 +1971,19 @@ type CreateWebhookInput struct {
 // event by its id. Events: crawl.completed, gsc.synced, rank.moved,
 // backlink.new, backlink.lost, issue.new_critical, ai.citation.gained,
 // ai.citation.lost, competitor.page.new, budget.threshold, alert.fired,
-// vendor.balance_low, vendor.balance_empty, deploy_hook.processed.
-// deploy_hook.processed fires on each deploy hook run with what it read,
-// changed and submitted. vendor.balance_low (at set_vendor_balance_alert's
-// threshold, default $5) and vendor.balance_empty fire at most once a week
-// while the balance stays low, not once per crossing, and reach client-scoped
-// webhooks too; vendor.balance_empty fires again, once a day, with
-// pausedScheduledRuns while scheduled rank runs wait for funds. clientId
-// limits it to one client; null is every client. The secret is in the response
-// once. Answers 'tell my system when a crawl finishes'. Free.
+// vendor.balance_low, vendor.balance_empty, deploy_hook.processed,
+// processor.updated. deploy_hook.processed fires on each deploy hook run with
+// what it read, changed and submitted. vendor.balance_low (at
+// set_vendor_balance_alert's threshold, default $5) and vendor.balance_empty
+// fire at most once a week while the balance stays low, not once per crossing,
+// and reach client-scoped webhooks too; vendor.balance_empty fires again, once
+// a day, with pausedScheduledRuns while scheduled rank runs wait for funds.
+// processor.updated fires once per new version of /.well-known/processor.json
+// (retention, sub-processors) with {version, updated, url}, to webhooks
+// created before that version and to client-scoped ones too, so a privacy
+// notice or consent manager can refresh. clientId limits it to one client;
+// null is every client. The secret is in the response once. Answers 'tell my
+// system when a crawl finishes'. Free.
 func (c *Client) CreateWebhook(ctx context.Context, in CreateWebhookInput) (json.RawMessage, error) {
 	return c.Call(ctx, "create_webhook", in)
 }
@@ -2266,7 +2273,7 @@ type DraftArticleInput struct {
 	LocationCode    *int64   `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom). Default: the client's project.
 	LanguageCode    string   `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
 	MaxCostMicros   *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun          *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun          *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // DraftArticle calls draft_article: Draft an article from the brief. Writes a
@@ -2289,7 +2296,7 @@ func (c *Client) DraftArticle(ctx context.Context, in DraftArticleInput) (json.R
 type DraftClientBriefInput struct {
 	ClientID      string `json:"clientId"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // DraftClientBrief calls draft_client_brief: Draft the client brief from their
@@ -2314,7 +2321,7 @@ type DraftOutreachEmailsInput struct {
 	OurURL        string   `json:"ourUrl,omitempty"`
 	Sender        string   `json:"sender,omitempty"`        // Who signs it.
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // DraftOutreachEmails calls draft_outreach_emails: Draft outreach emails to
@@ -2341,7 +2348,7 @@ type DraftReviewRepliesInput struct {
 	IncludeAnswered *bool  `json:"includeAnswered,omitempty"`
 	Trade           string `json:"trade,omitempty"`
 	MaxCostMicros   *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun          *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun          *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // DraftReviewReplies calls draft_review_replies: Draft replies to a location's
@@ -2368,7 +2375,7 @@ type DraftSEOStrategyInput struct {
 	Instructions  string   `json:"instructions,omitempty"`
 	Save          *bool    `json:"save,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // DraftSEOStrategy calls draft_seo_strategy: Draft an SEO strategy. Drafts a
@@ -2435,7 +2442,7 @@ type EstimateDomainTrafficInput struct {
 	ClientID      string   `json:"clientId"` // The client whose account and monthly cap pay for the lookup
 	Targets       []string `json:"targets"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // EstimateDomainTraffic calls estimate_domain_traffic: Estimate search traffic
@@ -2477,7 +2484,7 @@ type ExplainResultInput struct {
 	Result        any    `json:"result"`
 	Audience      string `json:"audience,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ExplainResult calls explain_result: Explain a result in plain words. Reads
@@ -2496,7 +2503,7 @@ type ExploreAIPromptInput struct {
 	Prompt        string   `json:"prompt"`
 	Engines       []string `json:"engines,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ExploreAIPrompt calls explore_ai_prompt: Ask assistants one question now.
@@ -2629,7 +2636,7 @@ type FindLinkOpportunitiesInput struct {
 	LocationCode   *int64   `json:"locationCode,omitempty"`
 	LanguageCode   string   `json:"languageCode,omitempty"`
 	MaxCostMicros  *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun         *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun         *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // FindLinkOpportunities calls find_link_opportunities: Resource pages, best-of
@@ -2658,7 +2665,7 @@ type FindSerpCompetitorsInput struct {
 	Limit         *int64   `json:"limit,omitempty"`
 	Exclude       []string `json:"exclude,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // FindSerpCompetitors calls find_serp_competitors: Who competes across a
@@ -2694,7 +2701,7 @@ type FindUnlinkedMentionsInput struct {
 	Since         string `json:"since,omitempty"` // Only pages published since; default the last year.
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // FindUnlinkedMentions calls find_unlinked_mentions: Pages that name the brand
@@ -2950,7 +2957,7 @@ type GetAIBrandMentionsInput struct {
 	LocationCode   *int64           `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode   string           `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros  *int64           `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun         *bool            `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun         *bool            `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAIBrandMentions calls get_ai_brand_mentions: Brand share of voice in AI
@@ -2978,7 +2985,7 @@ type GetAICitationGapInput struct {
 	Question      string   `json:"question,omitempty"`
 	CitedURLs     []string `json:"citedUrls,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAICitationGap calls get_ai_citation_gap: Why assistants cite others and
@@ -3088,7 +3095,7 @@ type GetAIModeAnswerInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode  string `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAIModeAnswer calls get_ai_mode_answer: Google AI Mode for a keyword. What
@@ -3131,7 +3138,7 @@ type GetAIPromptResearchInput struct {
 	LocationCode   *int64 `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode   string `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros  *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun         *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun         *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAIPromptResearch calls get_ai_prompt_research: Real questions people ask
@@ -3177,7 +3184,7 @@ type GetAISearchVolumeInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode  string   `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAISearchVolume calls get_ai_search_volume: How often a topic is asked of
@@ -3201,7 +3208,7 @@ type GetAITopCitedDomainsInput struct {
 	LocationCode   *int64 `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode   string `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros  *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun         *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun         *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAITopCitedDomains calls get_ai_top_cited_domains: Who AI answers cite on
@@ -3353,7 +3360,7 @@ type GetAnchorDistributionInput struct {
 	Limit         *int64   `json:"limit,omitempty"`
 	MoneyTerms    []string `json:"moneyTerms,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAnchorDistribution calls get_anchor_distribution: Anchor text mix. The
@@ -3402,7 +3409,7 @@ type GetAppKeywordGapInput struct {
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	Limit         *int64   `json:"limit,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAppKeywordGap calls get_app_keyword_gap: Keywords competitor apps rank
@@ -3424,7 +3431,7 @@ type GetAppMetricsInput struct {
 	Engine        string   `json:"engine"`
 	AppIDs        []string `json:"appIds"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetAppMetrics calls get_app_metrics: How visible apps are in an app store.
@@ -3533,7 +3540,7 @@ type GetBacklinkHealthInput struct {
 	FetchSpamScores *bool          `json:"fetchSpamScores,omitempty"` // True to buy the vendor's spam score for every linking site inside this call (one paid request of up to 1,000 sites, the price of get_backlink_spam_scores; sites
 	Industry        string         `json:"industry,omitempty"`
 	MaxCostMicros   *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun          *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun          *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBacklinkHealth calls get_backlink_health: How healthy is the link
@@ -3573,7 +3580,7 @@ type GetBacklinkHistoryInput struct {
 	Target        string `json:"target,omitempty"`        // A domain (competitor.com), a subfolder (competitor.com/blog/) or a page URL. Default: the client's own domain.
 	From          string `json:"from,omitempty"`          // Default: two years back.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBacklinkHistory calls get_backlink_history: A domain's backlinks over
@@ -3592,7 +3599,7 @@ type GetBacklinkSpamScoresInput struct {
 	ClientID      string   `json:"clientId"`
 	Domains       []string `json:"domains"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBacklinkSpamScores calls get_backlink_spam_scores: The vendor's spam
@@ -3615,7 +3622,7 @@ type GetBacklinksInput struct {
 	Mode          string `json:"mode,omitempty"`
 	Days          *int64 `json:"days,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBacklinks calls get_backlinks: Backlinks, new and lost. The links to a
@@ -3639,7 +3646,7 @@ type GetBatchAnalysisInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"` // Default: the client's project.
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBatchAnalysis calls get_batch_analysis: Compare many domains at once. For
@@ -3661,7 +3668,7 @@ type GetBestPagesByLinksInput struct {
 	Source        string `json:"source,omitempty"`
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBestPagesByLinks calls get_best_pages_by_links: Pages that attract links.
@@ -3806,7 +3813,7 @@ type GetBrandMentionsInput struct {
 	ClientID      string `json:"clientId"` // The client whose account and monthly cap pay for the lookup
 	Keyword       string `json:"keyword"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBrandMentions calls get_brand_mentions: Find recent mentions of a brand
@@ -3860,7 +3867,7 @@ type GetBrokenBacklinksInput struct {
 	Source        string `json:"source,omitempty"`
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBrokenBacklinks calls get_broken_backlinks: Links to broken pages. Links
@@ -3906,7 +3913,7 @@ type GetBusinessPostsInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"` // Default: the client's project country.
 	LanguageCode  string `json:"languageCode,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBusinessPosts calls get_business_posts: Any business's Google posts. The
@@ -3932,7 +3939,7 @@ type GetBusinessProfileInput struct {
 	Lat           *float64 `json:"lat,omitempty"`
 	Lng           *float64 `json:"lng,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBusinessProfile calls get_business_profile: Any business's Google
@@ -3958,7 +3965,7 @@ type GetBusinessQuestionsInput struct {
 	Lat           *float64 `json:"lat,omitempty"`
 	Lng           *float64 `json:"lng,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBusinessQuestions calls get_business_questions: A business's Google Q&A.
@@ -3980,7 +3987,7 @@ type GetBusinessReviewsInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"` // Default: the client's project country.
 	LanguageCode  string `json:"languageCode,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetBusinessReviews calls get_business_reviews: Any business's Google
@@ -4122,7 +4129,7 @@ type GetCompetitorBrokenPagesInput struct {
 	DofollowOnly  *bool  `json:"dofollowOnly,omitempty"` // Only pages with at least one dofollow referring domain.
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetCompetitorBrokenPages calls get_competitor_broken_pages: A competitor's
@@ -4403,7 +4410,7 @@ type GetDemandMatrixInput struct {
 	LanguageCode  string         `json:"languageCode,omitempty"`
 	MinVolume     *int64         `json:"minVolume,omitempty"`     // Below this monthly volume a combination is skip.
 	MaxCostMicros *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetDemandMatrix calls get_demand_matrix: Demand for every combination.
@@ -4461,7 +4468,7 @@ func (c *Client) GetDisavowHistory(ctx context.Context, in GetDisavowHistoryInpu
 type GetDomainFactsInput struct {
 	Domain        string `json:"domain"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetDomainFacts calls get_domain_facts: What the open web says about a
@@ -4493,7 +4500,7 @@ type GetDomainKeywordGapInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"` // Default: the client's project.
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetDomainKeywordGap calls get_domain_keyword_gap: Keyword gap against
@@ -4519,7 +4526,7 @@ type GetDomainOverviewInput struct {
 	LanguageCode  string  `json:"languageCode,omitempty"`
 	HistoryMonths *int64  `json:"historyMonths,omitempty"`
 	MaxCostMicros *int64  `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool   `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool   `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetDomainOverview calls get_domain_overview: A domain's organic and paid
@@ -4579,7 +4586,7 @@ type GetEngineKeywordIdeasInput struct {
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	Limit         *int64   `json:"limit,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetEngineKeywordIdeas calls get_engine_keyword_ideas: Keyword ideas for Bing
@@ -4589,8 +4596,12 @@ type GetEngineKeywordIdeasInput struct {
 // reads DataForSEO Labs' Amazon related keywords (with Amazon search volume;
 // one seed). Answers 'what do people search on Amazon around this product' and
 // 'what are the Bing variations of this term'. Google ideas are
-// keyword_explorer. A paid lookup on the client's account unless anyone read
-// the same thing recently (spend says which); quote it with estimate_cost.
+// keyword_explorer. When the vendor cannot answer (no credit, no credentials,
+// an outage), it answers degraded: true with missing and ideas: the client's
+// own Search Console queries from the last 90 days that hold a seed's words,
+// with clicks, impressions and position but no volumes, free. A paid lookup on
+// the client's account unless anyone read the same thing recently (spend says
+// which); quote it with estimate_cost.
 func (c *Client) GetEngineKeywordIdeas(ctx context.Context, in GetEngineKeywordIdeasInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_engine_keyword_ideas", in)
 }
@@ -4606,7 +4617,7 @@ type GetEntityCoverageInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`
 	LanguageCode  string `json:"languageCode,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetEntityCoverage calls get_entity_coverage: The entities a page should
@@ -4682,7 +4693,7 @@ type GetForumOpportunitiesInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"`
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetForumOpportunities calls get_forum_opportunities: Reddit, Quora and forum
@@ -4943,7 +4954,7 @@ type GetGeoReadinessInput struct {
 	TopPages      *int64   `json:"topPages,omitempty"`
 	BrandMentions *bool    `json:"brandMentions,omitempty"` // Also count the brand's mentions on the web, Reddit, YouTube, LinkedIn and Wikipedia from Google search: five paid results pages (quote with estimate_cost).
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetGeoReadiness calls get_geo_readiness: How ready the pages are to be cited
@@ -5023,7 +5034,7 @@ type GetGoogleTrendsInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"` // Default: the client's project.
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetGoogleTrends calls get_google_trends: Google Trends for up to five
@@ -5107,7 +5118,7 @@ type GetImageSerpInput struct {
 	LanguageCode  string `json:"languageCode,omitempty"`
 	Device        string `json:"device,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetImageSerp calls get_image_serp: Who owns the image results for a keyword.
@@ -5237,7 +5248,7 @@ type GetKeywordAdvertisersInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode  string `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetKeywordAdvertisers calls get_keyword_advertisers: Who advertises on a
@@ -5303,7 +5314,7 @@ type GetKeywordMetricsInput struct {
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	Clickstream   *bool    `json:"clickstream,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetKeywordMetrics calls get_keyword_metrics: Metrics for a list of keywords.
@@ -5329,7 +5340,7 @@ type GetKeywordTrendsInput struct {
 	ClientID      string   `json:"clientId"` // The client whose account and monthly cap pay for the lookup
 	Terms         []string `json:"terms"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetKeywordTrends calls get_keyword_trends: Get Google Trends interest for
@@ -5389,7 +5400,7 @@ type GetLinkGapInput struct {
 	Limit         *int64   `json:"limit,omitempty"`
 	Source        string   `json:"source,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetLinkGap calls get_link_gap: Link gap against competitors. The sites that
@@ -5458,7 +5469,7 @@ type GetLiveSerpsInput struct {
 	Device        string   `json:"device,omitempty"`
 	Top           *int64   `json:"top,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetLiveSerps calls get_live_serps: Read several results pages now. Reads the
@@ -5481,7 +5492,7 @@ type GetLlmResponsesInput struct {
 	Country       string         `json:"country,omitempty"`       // Where the web search runs from (ChatGPT, Claude and Perplexity's Sonar models).
 	Models        map[string]any `json:"models,omitempty"`        // A model per platform; defaults gpt-5-mini, claude-sonnet-4-6, gemini-2.5-flash, sonar.
 	MaxCostMicros *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetLlmResponses calls get_llm_responses: Ask ChatGPT, Claude, Gemini and
@@ -5510,7 +5521,7 @@ type GetLocalCategoriesInput struct {
 	RadiusKm      *float64 `json:"radiusKm,omitempty"`
 	Categories    []string `json:"categories,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetLocalCategories calls get_local_categories: Business categories in an
@@ -5537,7 +5548,7 @@ type GetLocalSEOAuditInput struct {
 	Service            string   `json:"service,omitempty"`
 	Model              string   `json:"model,omitempty"`
 	MaxCostMicros      *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun             *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun             *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetLocalSEOAudit calls get_local_seo_audit: Local SEO audit of a location.
@@ -5670,7 +5681,7 @@ type GetMapsResultsInput struct {
 	Lat           *float64 `json:"lat,omitempty"`
 	Lng           *float64 `json:"lng,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetMapsResults calls get_maps_results: Google Maps results from one spot.
@@ -5863,7 +5874,7 @@ type GetPageBacklinksInput struct {
 	DofollowOnly  *bool  `json:"dofollowOnly,omitempty"`
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetPageBacklinks calls get_page_backlinks: Who links to one page. The sites
@@ -6017,7 +6028,7 @@ type GetPlatformReviewsInput struct {
 	Depth         *int64 `json:"depth,omitempty"`         // How many reviews to read; billed per 10 (Tripadvisor) or 20 (Trustpilot).
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Default: the client's project country.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetPlatformReviews calls get_platform_reviews: A business's Tripadvisor or
@@ -6229,7 +6240,7 @@ type GetRankedKeywordsInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode  string `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetRankedKeywords calls get_ranked_keywords: What a domain ranks for. Every
@@ -6278,7 +6289,7 @@ type GetReferringDomainsInput struct {
 	Source        string `json:"source,omitempty"`
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetReferringDomains calls get_referring_domains: Referring domains. The
@@ -6303,7 +6314,7 @@ type GetReferringNetworksInput struct {
 	Type          string `json:"type,omitempty"`
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetReferringNetworks calls get_referring_networks: Which networks the links
@@ -6698,7 +6709,7 @@ type GetSerpContentProfileInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom, 2724 Spain). Default: the client's project.
 	LanguageCode  string `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetSerpContentProfile calls get_serp_content_profile: What the ranking pages
@@ -6733,7 +6744,11 @@ type GetSerpFeaturesInput struct {
 // a client image, and the keywords where it ranks but has no image in the pack
 // (best position first) — 'where should we be in image results'. Features are
 // null for a capture whose source did not report them, which is not the same
-// as a page with none.
+// as a page with none. While the tracker has no captures yet (a new tracker,
+// or no vendor credit), the answer is degraded: true, missing says what is
+// lacking, and searchAppearance gives Search Console's own result kinds (rich
+// results, FAQ, video and others) with clicks and impressions over the last 28
+// days, free.
 func (c *Client) GetSerpFeatures(ctx context.Context, in GetSerpFeaturesInput) (json.RawMessage, error) {
 	return c.Call(ctx, "get_serp_features", in)
 }
@@ -6747,7 +6762,7 @@ type GetSerpHistoryInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode  string `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetSerpHistory calls get_serp_history: Who ranked for a keyword over time.
@@ -6969,7 +6984,7 @@ type GetSnippetTargetsInput struct {
 	Draft         *bool  `json:"draft,omitempty"`
 	ReadMissing   *bool  `json:"readMissing,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetSnippetTargets calls get_snippet_targets: Featured snippets within reach.
@@ -6990,7 +7005,7 @@ type GetSubdomainTrafficInput struct {
 	ClientID      string `json:"clientId"` // The client whose account and monthly cap pay for the lookup
 	Domain        string `json:"domain"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetSubdomainTraffic calls get_subdomain_traffic: See which subdomains carry
@@ -7014,7 +7029,7 @@ type GetSxoGapInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`
 	LanguageCode  string `json:"languageCode,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetSxoGap calls get_sxo_gap: Is this the kind of page Google ranks here.
@@ -7085,7 +7100,7 @@ type GetTopPagesInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Default: the client's project (2840 United States).
 	LanguageCode  string `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetTopPages calls get_top_pages: A domain's pages by traffic. A domain's (or
@@ -7127,7 +7142,7 @@ type GetTopicMapInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"`  // Default: the client's project.
 	LanguageCode  string   `json:"languageCode,omitempty"`  // Default: the client's project.
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetTopicMap calls get_topic_map: Map topics to pages. The client's topics
@@ -7175,7 +7190,7 @@ type GetToxicLinkRiskInput struct {
 	MinVerdict      string         `json:"minVerdict,omitempty"`
 	Limit           *int64         `json:"limit,omitempty"`
 	MaxCostMicros   *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun          *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun          *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetToxicLinkRisk calls get_toxic_link_risk: Which linking sites are a risk,
@@ -7213,7 +7228,7 @@ type GetTrackerAIModeInput struct {
 	TrackerID     string `json:"trackerId"`
 	Limit         *int64 `json:"limit,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetTrackerAIMode calls get_tracker_ai_mode: AI Mode beside each ranking.
@@ -7595,7 +7610,7 @@ type GetYoutubeChannelRankingsInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"`
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // GetYoutubeChannelRankings calls get_youtube_channel_rankings: Which of a
@@ -7827,7 +7842,7 @@ type KeywordExplorerInput struct {
 	PageSize      *int64         `json:"pageSize,omitempty"`
 	Format        string         `json:"format,omitempty"`
 	MaxCostMicros *int64         `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool          `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // KeywordExplorer calls keyword_explorer: Explore keyword ideas with filters.
@@ -7839,7 +7854,10 @@ type KeywordExplorerInput struct {
 // and market; every later filter on the same seed is free. Rows a filter
 // cannot judge because the number is unknown are left out and counted in
 // unknownExcluded rather than treated as zero. Set format to csv for every
-// matching row as a CSV file.
+// matching row as a CSV file. When the vendor cannot answer (no credit, no
+// credentials, an outage), it answers degraded: true with missing and ideas:
+// the client's own Search Console queries from the last 90 days that hold a
+// seed's words, with clicks, impressions and position but no volumes, free.
 func (c *Client) KeywordExplorer(ctx context.Context, in KeywordExplorerInput) (json.RawMessage, error) {
 	return c.Call(ctx, "keyword_explorer", in)
 }
@@ -7852,7 +7870,7 @@ type KeywordTrafficPotentialInput struct {
 	LanguageCode  string `json:"languageCode,omitempty"`
 	Refresh       *bool  `json:"refresh,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // KeywordTrafficPotential calls keyword_traffic_potential: What ranking first
@@ -8693,7 +8711,7 @@ type MineAppReviewsInput struct {
 	Limit         *int64 `json:"limit,omitempty"`
 	TaskID        string `json:"taskId,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // MineAppReviews calls mine_app_reviews: What an app's reviews keep saying.
@@ -8801,7 +8819,7 @@ func (c *Client) OnboardSite(ctx context.Context, in OnboardSiteInput) (json.Raw
 type PageHeadersInput struct {
 	URL           string `json:"url"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // PageHeaders calls page_headers: What the server actually returned. Status
@@ -8818,7 +8836,7 @@ type PageLabInput struct {
 	URL           string `json:"url"`
 	Strategy      string `json:"strategy,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // PageLab calls page_lab: How a page scores in one synthetic run. Lighthouse
@@ -8879,7 +8897,7 @@ type PlanContentInput struct {
 	Trends           *bool    `json:"trends,omitempty"`
 	IncludeRefreshes *bool    `json:"includeRefreshes,omitempty"`
 	MaxCostMicros    *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun           *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun           *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // PlanContent calls plan_content: Plan the editorial calendar. Builds and
@@ -9201,7 +9219,7 @@ func (c *Client) RedeliverWebhook(ctx context.Context, in RedeliverWebhookInput)
 type RefreshDomainDataInput struct {
 	ClientID      string `json:"clientId"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // RefreshDomainData calls refresh_domain_data: Refresh domain and backlink
@@ -9224,7 +9242,7 @@ type RefreshKeywordListMetricsInput struct {
 	ListID            string `json:"listId"`
 	OnlyOlderThanDays *int64 `json:"onlyOlderThanDays,omitempty"`
 	MaxCostMicros     *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun            *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun            *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // RefreshKeywordListMetrics calls refresh_keyword_list_metrics: Refresh a
@@ -9247,7 +9265,7 @@ func (c *Client) RefreshKeywordListMetrics(ctx context.Context, in RefreshKeywor
 type RefreshRankingsInput struct {
 	ClientID      string `json:"clientId"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // RefreshRankings calls refresh_rankings: Capture rankings now. Captures the
@@ -9426,7 +9444,7 @@ type ResearchTopicInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom). Default: the client's project.
 	LanguageCode  string `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ResearchTopic calls research_topic: Subtopics, questions and headlines
@@ -9589,7 +9607,7 @@ type RewriteSectionInput struct {
 	LocationCode  *int64   `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom). Default: the client's project.
 	LanguageCode  string   `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // RewriteSection calls rewrite_section: Rewrite a section to cover what is
@@ -9646,7 +9664,7 @@ func (c *Client) RotateDeployHook(ctx context.Context, in RotateDeployHookInput)
 type RunAIVisibilityCheckInput struct {
 	ClientID      string `json:"clientId"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // RunAIVisibilityCheck calls run_ai_visibility_check: Run an AI visibility
@@ -9663,7 +9681,7 @@ func (c *Client) RunAIVisibilityCheck(ctx context.Context, in RunAIVisibilityChe
 type RunAuditPerformanceSampleInput struct {
 	ClientID      string `json:"clientId"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // RunAuditPerformanceSample calls run_audit_performance_sample: Measure the
@@ -9703,7 +9721,7 @@ type RunLocalGridScanInput struct {
 	Device        string   `json:"device,omitempty"`
 	MoreTerms     []string `json:"moreTerms,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // RunLocalGridScan calls run_local_grid_scan: Run a map-pack grid scan.
@@ -9900,7 +9918,7 @@ type ScoreAmazonListingInput struct {
 	LanguageCode  string `json:"languageCode,omitempty"`
 	Competitors   *int64 `json:"competitors,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ScoreAmazonListing calls score_amazon_listing: Score an Amazon listing
@@ -9926,7 +9944,7 @@ type ScoreAppMetadataInput struct {
 	LanguageCode  string   `json:"languageCode,omitempty"`
 	TaskID        string   `json:"taskId,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ScoreAppMetadata calls score_app_metadata: Score an app's store listing.
@@ -9955,7 +9973,7 @@ type ScoreContentInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`  // Google location code (2840 United States, 2826 United Kingdom, 2724 Spain). Default: the client's project.
 	LanguageCode  string `json:"languageCode,omitempty"`  // Language code (en, es). Default: the client's project.
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ScoreContent calls score_content: Score a draft before publishing. Scores a
@@ -9990,7 +10008,7 @@ type ScoreEeatInput struct {
 	TopPages      *int64   `json:"topPages,omitempty"`
 	Judge         *bool    `json:"judge,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // ScoreEeat calls score_eeat: Score pages for E-E-A-T. Scores pages of the
@@ -10032,7 +10050,7 @@ type SearchLocalBusinessesInput struct {
 	Claimed       *bool    `json:"claimed,omitempty"`
 	Limit         *int64   `json:"limit,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SearchLocalBusinesses calls search_local_businesses: Businesses in an area.
@@ -10081,7 +10099,7 @@ type SearchWebContentInput struct {
 	Limit         *int64   `json:"limit,omitempty"`
 	Offset        *int64   `json:"offset,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SearchWebContent calls search_web_content: Pages on the web that mention a
@@ -10174,7 +10192,7 @@ type SerpOverviewInput struct {
 	LanguageCode  string `json:"languageCode,omitempty"`
 	Refresh       *bool  `json:"refresh,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SerpOverview calls serp_overview: Who is on the first page for a keyword.
@@ -10627,7 +10645,7 @@ type SubmitBaiduURLsInput struct {
 	ClientID      string   `json:"clientId"`
 	URLs          []string `json:"urls"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SubmitBaiduURLs calls submit_baidu_urls: Push pages to Baidu. Pushes
@@ -10737,7 +10755,7 @@ type SubmitYandexRecrawlInput struct {
 	ClientID      string   `json:"clientId"`
 	URLs          []string `json:"urls"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SubmitYandexRecrawl calls submit_yandex_recrawl: Ask Yandex to recrawl
@@ -10758,7 +10776,7 @@ type SuggestAIPromptsInput struct {
 	Topic         string `json:"topic,omitempty"`
 	Count         *int64 `json:"count,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SuggestAIPrompts calls suggest_ai_prompts: Suggest questions to track.
@@ -10783,7 +10801,7 @@ type SuggestAIVisibilitySetupInput struct {
 	Platform       string   `json:"platform,omitempty"` // Which AI answer index the questions come from.
 	Apply          *bool    `json:"apply,omitempty"`
 	MaxCostMicros  *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun         *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun         *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SuggestAIVisibilitySetup calls suggest_ai_visibility_setup: Set up AI
@@ -10840,7 +10858,7 @@ type SuggestMetaTagsInput struct {
 	Limit         *int64   `json:"limit,omitempty"`
 	Format        string   `json:"format,omitempty"`
 	MaxCostMicros *int64   `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool    `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SuggestMetaTags calls suggest_meta_tags: Titles and descriptions for a whole
@@ -10862,7 +10880,7 @@ type SyncLocalReviewsInput struct {
 	ClientID      string `json:"clientId"`
 	LocationID    string `json:"locationId"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // SyncLocalReviews calls sync_local_reviews: Collect a location's Google
@@ -11493,7 +11511,7 @@ type YoutubeKeywordResearchInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`
 	LanguageCode  string `json:"languageCode,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // YoutubeKeywordResearch calls youtube_keyword_research: YouTube search
@@ -11518,7 +11536,7 @@ type YoutubeVideoBriefInput struct {
 	LocationCode  *int64 `json:"locationCode,omitempty"`
 	LanguageCode  string `json:"languageCode,omitempty"`
 	MaxCostMicros *int64 `json:"maxCostMicros,omitempty"` // Optional spending limit for this call, in micro-USD (1,000,000 = $1). The call is checked against its quote first and refused with nothing bought (meta.costMicr
-	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: what the call would cost at most and what it would buy.
+	DryRun        *bool  `json:"dryRun,omitempty"`        // True to buy nothing and get the quote instead: estimatedCostMicros, the most the call would cost, and purchases, the vendor calls it would make.
 }
 
 // YoutubeVideoBrief calls youtube_video_brief: A title, description and
